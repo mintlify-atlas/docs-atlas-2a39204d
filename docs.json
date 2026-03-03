@@ -78,7 +78,8 @@
               "api/packages/ui-components",
               "api/packages/playout",
               "api/packages/annotations",
-              "api/packages/recording"
+              "api/packages/recording",
+              "api/packages/spectrogram"
             ]
           },
           {
@@ -86,7 +87,8 @@
             "pages": [
               "api/providers/waveform-playlist-provider",
               "api/providers/media-element-provider",
-              "api/providers/annotation-provider"
+              "api/providers/annotation-provider",
+              "api/providers/spectrogram-provider"
             ]
           },
           {

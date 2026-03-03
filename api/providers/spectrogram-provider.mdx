@@ -1,0 +1,177 @@
+---
+title: SpectrogramProvider
+description: Optional provider for spectrogram visualization integration
+---
+
+`SpectrogramProvider` supplies spectrogram components and functionality to the `@waveform-playlist/browser` package through the integration context pattern.
+
+## Import
+
+```tsx
+import { SpectrogramProvider } from '@waveform-playlist/spectrogram';
+```
+
+<Note>
+This provider is part of the optional `@waveform-playlist/spectrogram` package. Install it separately: `npm install @waveform-playlist/spectrogram fft.js`
+</Note>
+
+## Usage
+
+Wrap your application with `SpectrogramProvider` to enable spectrogram visualization:
+
+```tsx
+import { WaveformPlaylistProvider, Waveform } from '@waveform-playlist/browser';
+import { SpectrogramProvider } from '@waveform-playlist/spectrogram';
+
+function App() {
+  const [tracks, setTracks] = useState([]);
+
+  return (
+    <SpectrogramProvider>
+      <WaveformPlaylistProvider tracks={tracks}>
+        <Waveform />
+      </WaveformPlaylistProvider>
+    </SpectrogramProvider>
+  );
+}
+```
+
+<Tip>
+The `SpectrogramProvider` must wrap `WaveformPlaylistProvider` to supply the integration context before the waveform components render.
+</Tip>
+
+## Props
+
+The `SpectrogramProvider` currently accepts no configuration props. All spectrogram settings are controlled through the UI components (`SpectrogramMenuItems`, `SpectrogramSettingsModal`) or via the integration context.
+
+## Integration Context Pattern
+
+The spectrogram package follows the same integration pattern as annotations:
+
+**1. Browser package defines the interface:**
+
+```tsx
+// From @waveform-playlist/browser
+import { 
+  SpectrogramIntegrationProvider, 
+  useSpectrogramIntegration 
+} from '@waveform-playlist/browser';
+```
+
+**2. Spectrogram package provides the implementation:**
+
+```tsx
+// From @waveform-playlist/spectrogram
+import { SpectrogramProvider } from '@waveform-playlist/spectrogram';
+```
+
+**3. Components use the hook:**
+
+```tsx
+// Throws if SpectrogramProvider is not present
+const integration = useSpectrogramIntegration();
+```
+
+This pattern allows the browser package to work with or without spectrograms installed.
+
+## Context Value
+
+When `SpectrogramProvider` is present, the integration context provides:
+
+- **SpectrogramChannel component** - Frequency visualization component
+- **Spectrogram state management** - Color map, frequency scale, visibility settings
+- **Web Worker coordination** - FFT computation and OffscreenCanvas rendering
+
+## Features Enabled
+
+With `SpectrogramProvider` installed:
+
+✅ Frequency-domain visualization alongside waveforms  
+✅ Real-time FFT computation in Web Workers  
+✅ Configurable color maps (viridis, plasma, inferno, etc.)  
+✅ Linear or logarithmic frequency scales  
+✅ Virtual scrolling for memory efficiency  
+✅ UI controls for spectrogram settings  
+
+## Example with Settings
+
+```tsx
+import { 
+  WaveformPlaylistProvider, 
+  Waveform,
+  useAudioTracks,
+  PlayButton,
+  PauseButton
+} from '@waveform-playlist/browser';
+import { 
+  SpectrogramProvider, 
+  SpectrogramMenuItems,
+  SpectrogramSettingsModal
+} from '@waveform-playlist/spectrogram';
+
+function SpectrogramExample() {
+  const { tracks, loading } = useAudioTracks([
+    { src: '/audio/music.mp3', name: 'Track 1' }
+  ]);
+  const [showSettings, setShowSettings] = useState(false);
+
+  if (loading) return <div>Loading...</div>;
+
+  return (
+    <SpectrogramProvider>
+      <WaveformPlaylistProvider tracks={tracks}>
+        <div>
+          <PlayButton />
+          <PauseButton />
+          <SpectrogramMenuItems onOpenSettings={() => setShowSettings(true)} />
+        </div>
+        <Waveform />
+        {showSettings && (
+          <SpectrogramSettingsModal onClose={() => setShowSettings(false)} />
+        )}
+      </WaveformPlaylistProvider>
+    </SpectrogramProvider>
+  );
+}
+```
+
+## Browser Requirements
+
+Spectrogram rendering requires:
+
+- **Web Workers** - All modern browsers
+- **OffscreenCanvas** - Chrome 69+, Firefox 105+, Safari 16.4+, Edge 79+
+
+<Warning>
+Browsers without OffscreenCanvas support fall back to main-thread rendering, which may impact performance on long audio files. Consider checking `OffscreenCanvas` support before enabling spectrograms.
+</Warning>
+
+## Performance Considerations
+
+### Memory Usage
+
+- Virtual scrolling renders only visible chunks (1000px wide)
+- Typical memory: ~150MB for 10-hour stereo file
+- Without virtual scrolling: ~1.5GB (10x more)
+
+### Computation Cost
+
+- FFT runs in Web Workers (off main thread)
+- Rendering uses OffscreenCanvas (GPU accelerated)
+- Initial computation: ~2-5 seconds for 10-hour file
+- Real-time updates during playback: 60fps
+
+See the [Performance Optimization guide](/advanced/performance-optimization) for more details.
+
+## Related Documentation
+
+- [Spectrogram Package](/api/packages/spectrogram) - Complete package documentation
+- [AnnotationProvider](/api/providers/annotation-provider) - Similar integration pattern
+- [WaveformPlaylistProvider](/api/providers/waveform-playlist-provider) - Main provider
+- [Browser Compatibility](/advanced/browser-compatibility) - OffscreenCanvas support
+
+## Source Code
+
+View the complete source code on GitHub:
+- [SpectrogramProvider.tsx](https://github.com/naomiaro/waveform-playlist/blob/main/packages/spectrogram/src/SpectrogramProvider.tsx)
+- [Integration context](https://github.com/naomiaro/waveform-playlist/blob/main/packages/browser/src/SpectrogramIntegrationContext.tsx)

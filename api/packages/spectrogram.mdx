@@ -1,0 +1,207 @@
+---
+title: "@waveform-playlist/spectrogram"
+description: Optional spectrogram visualization package for waveform-playlist
+---
+
+The `@waveform-playlist/spectrogram` package provides FFT-based frequency visualization for audio tracks, rendered alongside waveforms using Web Workers and OffscreenCanvas.
+
+## Installation
+
+<CodeGroup>
+```bash npm
+npm install @waveform-playlist/spectrogram fft.js react styled-components
+```
+
+```bash yarn
+yarn add @waveform-playlist/spectrogram fft.js react styled-components
+```
+
+```bash pnpm
+pnpm add @waveform-playlist/spectrogram fft.js react styled-components
+```
+</CodeGroup>
+
+<Note>
+**Peer dependencies:**
+- `@waveform-playlist/browser` - Main browser package
+- `fft.js` (^4.0.4) - FFT computation library
+- `react` (^18.0.0) - React framework
+- `styled-components` (^6.0.0) - Styling
+</Note>
+
+## Overview
+
+This package enables frequency-domain visualization using the Short-Time Fourier Transform (STFT). Features include:
+
+- **Web Worker computation** - FFT processing runs off the main thread
+- **OffscreenCanvas rendering** - GPU-accelerated spectrogram drawing
+- **Virtual scrolling** - Memory-efficient for long audio files
+- **Configurable color maps** - Viridis, Plasma, Inferno, Magma, and more
+- **Frequency scales** - Linear or logarithmic (mel-like) frequency axis
+- **Integration context pattern** - Works with or without the spectrogram package
+
+## Key Exports
+
+### Provider
+
+| Export | Description |
+|--------|-------------|
+| `SpectrogramProvider` | Provider component that supplies spectrogram components to the browser package |
+| `SpectrogramProviderProps` | Provider props type |
+
+### Components
+
+| Export | Description |
+|--------|-------------|
+| `SpectrogramMenuItems` | UI controls for spectrogram settings |
+| `SpectrogramSettingsModal` | Modal dialog for color map and frequency scale selection |
+
+### Computation
+
+| Export | Description |
+|--------|-------------|
+| `computeSpectrogram()` | Compute STFT for stereo audio |
+| `computeSpectrogramMono()` | Compute STFT for mono audio |
+| `getColorMap()` | Get color LUT by name (viridis, plasma, etc.) |
+| `getFrequencyScale()` | Get frequency scale function (linear or logarithmic) |
+| `FrequencyScaleName` | Type for scale names |
+
+### Worker
+
+| Export | Description |
+|--------|-------------|
+| `createSpectrogramWorker()` | Factory for creating spectrogram web workers |
+| `SpectrogramWorkerApi` | Worker API interface |
+| `SpectrogramWorkerRenderParams` | Render parameters type |
+
+## Usage
+
+### Basic Integration
+
+Wrap your app with `SpectrogramProvider` to enable spectrogram visualization:
+
+```tsx
+import { WaveformPlaylistProvider, Waveform } from '@waveform-playlist/browser';
+import { SpectrogramProvider } from '@waveform-playlist/spectrogram';
+
+function App() {
+  const [tracks, setTracks] = useState([]);
+
+  return (
+    <SpectrogramProvider>
+      <WaveformPlaylistProvider tracks={tracks}>
+        <Waveform />
+      </WaveformPlaylistProvider>
+    </SpectrogramProvider>
+  );
+}
+```
+
+<Tip>
+The `SpectrogramProvider` must wrap `WaveformPlaylistProvider` to supply the integration context.
+</Tip>
+
+### Color Maps
+
+Available color maps for spectrogram rendering:
+
+- **viridis** (default) - Perceptually uniform, colorblind-friendly
+- **plasma** - Purple to yellow gradient
+- **inferno** - Black to white through red/orange
+- **magma** - Dark to light through purple/pink
+- **jet** - Rainbow gradient (not perceptually uniform)
+- **hot** - Black-red-yellow-white gradient
+- **cool** - Cyan-magenta gradient
+- **gray** - Grayscale
+
+### Frequency Scales
+
+Two frequency scale options:
+
+- **linear** - Uniform frequency spacing (default)
+- **logarithmic** - Mel-like scale emphasizing lower frequencies
+
+## Integration Context Pattern
+
+The spectrogram package uses the same integration pattern as annotations:
+
+```tsx
+// Browser package defines the context
+import { 
+  SpectrogramIntegrationProvider, 
+  useSpectrogramIntegration 
+} from '@waveform-playlist/browser';
+
+// Spectrogram package provides the implementation
+import { SpectrogramProvider } from '@waveform-playlist/spectrogram';
+```
+
+The `useSpectrogramIntegration()` hook throws if used without the provider (Kent C. Dodds pattern), ensuring fast failure with clear error messages.
+
+## Performance Characteristics
+
+### Web Worker Architecture
+
+- FFT computation runs in a dedicated Web Worker
+- OffscreenCanvas rendering happens off the main thread
+- Virtual scrolling renders only visible spectrogram chunks (1000px wide)
+- Memory usage: ~150MB for 10-hour file (vs ~1.5GB without virtual scrolling)
+
+### Browser Support
+
+Requires:
+- **Web Workers** - All modern browsers
+- **OffscreenCanvas** - Chrome 69+, Firefox 105+, Safari 16.4+, Edge 79+
+
+<Warning>
+Safari versions before 16.4 and Firefox versions before 105 fall back to main-thread rendering, which may impact performance on long files.
+</Warning>
+
+## Example
+
+```tsx
+import { useState, useEffect } from 'react';
+import { 
+  WaveformPlaylistProvider, 
+  Waveform, 
+  useAudioTracks,
+  PlayButton,
+  PauseButton
+} from '@waveform-playlist/browser';
+import { SpectrogramProvider, SpectrogramMenuItems } from '@waveform-playlist/spectrogram';
+
+function SpectrogramExample() {
+  const { tracks, loading } = useAudioTracks([
+    { src: '/audio/music.mp3', name: 'Track 1' }
+  ]);
+
+  if (loading) return <div>Loading...</div>;
+
+  return (
+    <SpectrogramProvider>
+      <WaveformPlaylistProvider tracks={tracks}>
+        <div>
+          <PlayButton />
+          <PauseButton />
+          <SpectrogramMenuItems />
+        </div>
+        <Waveform />
+      </WaveformPlaylistProvider>
+    </SpectrogramProvider>
+  );
+}
+```
+
+## Related Documentation
+
+- [Browser Package](/api/packages/browser) - Main package with spectrogram integration context
+- [UI Components Package](/api/packages/ui-components) - Includes SpectrogramChannel component
+- [Performance Optimization](/advanced/performance-optimization) - Virtual scrolling details
+- [Browser Compatibility](/advanced/browser-compatibility) - OffscreenCanvas support table
+
+## Source Code
+
+View the complete source code on GitHub:
+- [packages/spectrogram/](https://github.com/naomiaro/waveform-playlist/tree/main/packages/spectrogram)
+- [SpectrogramProvider.tsx](https://github.com/naomiaro/waveform-playlist/blob/main/packages/spectrogram/src/SpectrogramProvider.tsx)
+- [Worker implementation](https://github.com/naomiaro/waveform-playlist/blob/main/packages/spectrogram/src/worker/)
