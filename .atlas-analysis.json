@@ -1,0 +1,166 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Waveform Playlist",
+  "projectDescription": "Multi-track Web Audio editor and player with React, featuring canvas waveform visualization, drag-and-drop editing, and 20+ Tone.js effects",
+  "theme": "aspen",
+  "primaryColor": "#63C75F",
+  "lightColor": "#c49a6c",
+  "darkColor": "#d08070",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/architecture",
+              "concepts/tracks-and-clips",
+              "concepts/audio-engine",
+              "concepts/theming"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/loading-audio",
+              "guides/playback-controls",
+              "guides/multi-track-editing",
+              "guides/drag-and-drop",
+              "guides/audio-effects",
+              "guides/recording",
+              "guides/annotations",
+              "guides/export-wav",
+              "guides/keyboard-shortcuts",
+              "guides/zoom-controls"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/custom-themes",
+              "advanced/custom-effects",
+              "advanced/media-element-provider",
+              "advanced/performance-optimization",
+              "advanced/browser-compatibility"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Packages",
+            "pages": [
+              "api/packages/browser",
+              "api/packages/core",
+              "api/packages/ui-components",
+              "api/packages/playout",
+              "api/packages/annotations",
+              "api/packages/recording"
+            ]
+          },
+          {
+            "group": "Providers & Context",
+            "pages": [
+              "api/providers/waveform-playlist-provider",
+              "api/providers/media-element-provider",
+              "api/providers/annotation-provider"
+            ]
+          },
+          {
+            "group": "Hooks",
+            "pages": [
+              "api/hooks/playback",
+              "api/hooks/audio-tracks",
+              "api/hooks/effects",
+              "api/hooks/recording",
+              "api/hooks/zoom-controls",
+              "api/hooks/keyboard-shortcuts",
+              "api/hooks/export"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "api/components/waveform",
+              "api/components/playback-controls",
+              "api/components/effects-controls",
+              "api/components/recording-controls",
+              "api/components/annotation-controls"
+            ]
+          },
+          {
+            "group": "Types & Interfaces",
+            "pages": [
+              "api/types/tracks",
+              "api/types/clips",
+              "api/types/effects",
+              "api/types/annotations"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "groups": [
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/stem-tracks",
+              "examples/multi-clip-editing",
+              "examples/audio-effects",
+              "examples/recording",
+              "examples/annotations",
+              "examples/waveform-data"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Multi-track audio editing with drag-and-drop clip manipulation",
+    "Canvas-based waveform visualization with zoom controls",
+    "20+ professional audio effects via Tone.js integration",
+    "AudioWorklet-based recording with live waveform preview",
+    "WAV export with effects rendering (individual tracks or full mix)",
+    "Time-synced text annotations with keyboard navigation",
+    "Full TypeScript support with comprehensive type definitions",
+    "Customizable theming with dark/light mode support",
+    "React provider pattern with composable hooks API",
+    "Browser-based Web Audio API with cross-browser compatibility"
+  ],
+  "publicApiSurface": [
+    "WaveformPlaylistProvider - Main React context provider for audio editing",
+    "MediaElementPlaylistProvider - Single-track provider with playback rate control",
+    "usePlaylistControls - Hook for play, pause, stop, seek controls",
+    "useAudioTracks - Hook for loading audio files into tracks",
+    "useDynamicEffects - Hook for master effects chain management",
+    "useTrackDynamicEffects - Hook for per-track effects",
+    "useExportWav - Hook for WAV export functionality",
+    "useIntegratedRecording - Hook for audio recording",
+    "useAnnotationControls - Hook for annotation management",
+    "useZoomControls - Hook for waveform zoom controls",
+    "useKeyboardShortcuts - Hook for custom keyboard shortcuts",
+    "Waveform - Main waveform display component",
+    "PlayButton, PauseButton, StopButton - Playback control components",
+    "ZoomInButton, ZoomOutButton - Zoom control components",
+    "MasterVolumeControl - Master volume control component",
+    "ExportWavButton - WAV export button component",
+    "RecordButton - Recording control component",
+    "createTrack - Utility to create track objects",
+    "createClipFromSeconds - Utility to create audio clips",
+    "effectDefinitions - Available Tone.js effects metadata",
+    "createEffectInstance - Factory for creating effect instances"
+  ]
+}
