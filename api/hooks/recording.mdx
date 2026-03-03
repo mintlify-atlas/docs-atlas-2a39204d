@@ -1,0 +1,562 @@
+---
+title: Recording Hooks
+description: React hooks for microphone recording with real-time level monitoring and integrated playlist recording
+---
+
+Recording hooks provide microphone access, audio recording, and VU meter functionality. All recording uses the global shared AudioContext from `@waveform-playlist/playout`.
+
+<Note>
+  **Important:** AudioContext must be resumed on user interaction via `resumeGlobalAudioContext()` before recording.
+</Note>
+
+## useIntegratedRecording
+
+All-in-one recording hook that combines microphone access, recording, and track management.
+
+### Import
+
+```typescript
+import { useIntegratedRecording } from '@waveform-playlist/recording';
+import type { IntegratedRecordingOptions } from '@waveform-playlist/recording';
+```
+
+### Usage
+
+```typescript
+import { WaveformPlaylistProvider, usePlaylistState, usePlaylistControls } from '@waveform-playlist/browser';
+import { useIntegratedRecording } from '@waveform-playlist/recording';
+import { useState } from 'react';
+
+function RecordingControls() {
+  const [tracks, setTracks] = useState([]);
+  const { selectedTrackId } = usePlaylistState();
+  const { currentTime } = usePlaylistControls();
+
+  const {
+    // Recording state
+    isRecording,
+    duration,
+    level,
+    peakLevel,
+    error,
+    // Microphone state
+    hasPermission,
+    devices,
+    selectedDevice,
+    // Controls
+    requestMicAccess,
+    startRecording,
+    stopRecording,
+    pauseRecording,
+    resumeRecording,
+    changeDevice,
+  } = useIntegratedRecording(tracks, setTracks, selectedTrackId, {
+    currentTime,
+    channelCount: 1, // mono
+  });
+
+  if (!hasPermission) {
+    return <button onClick={requestMicAccess}>Enable Microphone</button>;
+  }
+
+  return (
+    <div>
+      <select value={selectedDevice || ''} onChange={(e) => changeDevice(e.target.value)}>
+        {devices.map((device) => (
+          <option key={device.deviceId} value={device.deviceId}>
+            {device.label}
+          </option>
+        ))}
+      </select>
+
+      <VUMeter level={level} peakLevel={peakLevel} />
+
+      {!isRecording ? (
+        <button onClick={startRecording}>Record</button>
+      ) : (
+        <>
+          <button onClick={pauseRecording}>Pause</button>
+          <button onClick={stopRecording}>Stop</button>
+          <span>{duration.toFixed(2)}s</span>
+        </>
+      )}
+
+      {error && <div>Error: {error.message}</div>}
+    </div>
+  );
+}
+
+<WaveformPlaylistProvider tracks={tracks}>
+  <RecordingControls />
+</WaveformPlaylistProvider>
+```
+
+### Parameters
+
+<ParamField path="tracks" type="ClipTrack[]" required>
+  Current playlist tracks array.
+</ParamField>
+
+<ParamField path="setTracks" type="(tracks: ClipTrack[]) => void" required>
+  Function to update tracks (React state setter).
+</ParamField>
+
+<ParamField path="selectedTrackId" type="string | null" required>
+  ID of the currently selected track. Recording will be added to this track.
+</ParamField>
+
+<ParamField path="options" type="IntegratedRecordingOptions">
+  Recording configuration options.
+</ParamField>
+
+### IntegratedRecordingOptions
+
+<ParamField path="currentTime" type="number" default={0}>
+  Current playback/cursor position in seconds. Recording will start from `max(currentTime, lastClipEndTime)`.
+</ParamField>
+
+<ParamField path="audioConstraints" type="MediaTrackConstraints">
+  MediaTrackConstraints for audio recording. Overrides the recording-optimized defaults:
+  
+  ```typescript
+  {
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
+    latency: 0
+  }
+  ```
+</ParamField>
+
+<ParamField path="channelCount" type="number" default={1}>
+  Number of channels to record (1 = mono, 2 = stereo).
+</ParamField>
+
+<ParamField path="samplesPerPixel" type="number" default={1024}>
+  Samples per pixel for peak generation.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="isRecording" type="boolean">
+  Whether recording is in progress.
+</ResponseField>
+
+<ResponseField name="isPaused" type="boolean">
+  Whether recording is paused.
+</ResponseField>
+
+<ResponseField name="duration" type="number">
+  Current recording duration in seconds.
+</ResponseField>
+
+<ResponseField name="level" type="number">
+  Current RMS level (0-1). Use for VU meter visualization.
+</ResponseField>
+
+<ResponseField name="peakLevel" type="number">
+  Peak level since recording started (0-1).
+</ResponseField>
+
+<ResponseField name="error" type="Error | null">
+  Error object if recording failed, otherwise `null`.
+</ResponseField>
+
+<ResponseField name="stream" type="MediaStream | null">
+  Active microphone MediaStream.
+</ResponseField>
+
+<ResponseField name="devices" type="MicrophoneDevice[]">
+  Array of available microphone devices.
+  
+  ```typescript
+  interface MicrophoneDevice {
+    deviceId: string;
+    label: string;
+    groupId: string;
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="hasPermission" type="boolean">
+  Whether microphone permission has been granted.
+</ResponseField>
+
+<ResponseField name="selectedDevice" type="string | null">
+  Device ID of the currently selected microphone.
+</ResponseField>
+
+<ResponseField name="startRecording" type="() => void">
+  Start recording. Automatically resumes AudioContext and creates a new clip.
+</ResponseField>
+
+<ResponseField name="stopRecording" type="() => void">
+  Stop recording and add the recorded clip to the selected track.
+</ResponseField>
+
+<ResponseField name="pauseRecording" type="() => void">
+  Pause recording without stopping.
+</ResponseField>
+
+<ResponseField name="resumeRecording" type="() => void">
+  Resume paused recording.
+</ResponseField>
+
+<ResponseField name="requestMicAccess" type="() => Promise<void>">
+  Request microphone permission and enumerate devices.
+</ResponseField>
+
+<ResponseField name="changeDevice" type="(deviceId: string) => Promise<void>">
+  Switch to a different microphone device.
+</ResponseField>
+
+<ResponseField name="recordingPeaks" type="Int8Array | Int16Array">
+  Live peak data for waveform visualization during recording.
+</ResponseField>
+
+---
+
+## useRecording
+
+Low-level recording hook using AudioWorklet for raw audio capture.
+
+### Import
+
+```typescript
+import { useRecording } from '@waveform-playlist/recording';
+import type { RecordingOptions } from '@waveform-playlist/recording';
+```
+
+### Usage
+
+```typescript
+import { useRecording } from '@waveform-playlist/recording';
+import { useMicrophoneAccess } from '@waveform-playlist/recording';
+
+function BasicRecorder() {
+  const { stream, requestAccess } = useMicrophoneAccess();
+  const { isRecording, duration, peaks, audioBuffer, startRecording, stopRecording } = useRecording(
+    stream,
+    { channelCount: 1, samplesPerPixel: 1024 }
+  );
+
+  const handleStop = async () => {
+    const buffer = await stopRecording();
+    if (buffer) {
+      console.log('Recorded:', buffer.duration, 'seconds');
+      // Use buffer...
+    }
+  };
+
+  return (
+    <div>
+      {!stream && <button onClick={requestAccess}>Enable Mic</button>}
+      {stream && !isRecording && <button onClick={startRecording}>Record</button>}
+      {isRecording && <button onClick={handleStop}>Stop ({duration.toFixed(2)}s)</button>}
+    </div>
+  );
+}
+```
+
+### Parameters
+
+<ParamField path="stream" type="MediaStream | null" required>
+  MediaStream from `getUserMedia`. Typically obtained from `useMicrophoneAccess`.
+</ParamField>
+
+<ParamField path="options" type="RecordingOptions">
+  Recording configuration.
+</ParamField>
+
+### RecordingOptions
+
+<ParamField path="channelCount" type="number" default={1}>
+  Number of channels to record (1 = mono, 2 = stereo).
+</ParamField>
+
+<ParamField path="samplesPerPixel" type="number" default={1024}>
+  Samples per pixel for live peak generation.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="isRecording" type="boolean">
+  Whether recording is active.
+</ResponseField>
+
+<ResponseField name="isPaused" type="boolean">
+  Whether recording is paused.
+</ResponseField>
+
+<ResponseField name="duration" type="number">
+  Current recording duration in seconds.
+</ResponseField>
+
+<ResponseField name="peaks" type="Int8Array | Int16Array">
+  Live peak data for waveform visualization.
+</ResponseField>
+
+<ResponseField name="audioBuffer" type="AudioBuffer | null">
+  Final AudioBuffer after recording completes. `null` during recording.
+</ResponseField>
+
+<ResponseField name="level" type="number">
+  Current RMS level (0-1). Updated during recording.
+</ResponseField>
+
+<ResponseField name="peakLevel" type="number">
+  Peak level since recording started (0-1).
+</ResponseField>
+
+<ResponseField name="startRecording" type="() => Promise<void>">
+  Start recording. Loads AudioWorklet module and begins capturing audio.
+</ResponseField>
+
+<ResponseField name="stopRecording" type="() => Promise<AudioBuffer | null>">
+  Stop recording and return the final AudioBuffer.
+</ResponseField>
+
+<ResponseField name="pauseRecording" type="() => void">
+  Pause recording.
+</ResponseField>
+
+<ResponseField name="resumeRecording" type="() => void">
+  Resume paused recording.
+</ResponseField>
+
+<ResponseField name="error" type="Error | null">
+  Error object if recording failed.
+</ResponseField>
+
+---
+
+## useMicrophoneAccess
+
+Manage microphone permissions and device enumeration.
+
+### Import
+
+```typescript
+import { useMicrophoneAccess } from '@waveform-playlist/recording';
+import type { MicrophoneDevice } from '@waveform-playlist/recording';
+```
+
+### Usage
+
+```typescript
+function MicrophoneSelector() {
+  const { stream, devices, hasPermission, requestAccess, stopStream, error } = useMicrophoneAccess();
+
+  if (!hasPermission) {
+    return <button onClick={() => requestAccess()}>Grant Microphone Access</button>;
+  }
+
+  return (
+    <div>
+      <select onChange={(e) => requestAccess(e.target.value)}>
+        {devices.map((device) => (
+          <option key={device.deviceId} value={device.deviceId}>
+            {device.label}
+          </option>
+        ))}
+      </select>
+      <button onClick={stopStream}>Stop</button>
+      {error && <div>Error: {error.message}</div>}
+    </div>
+  );
+}
+```
+
+### Return Value
+
+<ResponseField name="stream" type="MediaStream | null">
+  Active microphone MediaStream.
+</ResponseField>
+
+<ResponseField name="devices" type="MicrophoneDevice[]">
+  Array of available audio input devices.
+  
+  ```typescript
+  interface MicrophoneDevice {
+    deviceId: string;
+    label: string;
+    groupId: string;
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="hasPermission" type="boolean">
+  Whether microphone permission has been granted.
+</ResponseField>
+
+<ResponseField name="isLoading" type="boolean">
+  Whether currently requesting access or enumerating devices.
+</ResponseField>
+
+<ResponseField name="requestAccess" type="(deviceId?: string, audioConstraints?: MediaTrackConstraints) => Promise<void>">
+  Request microphone access. Optionally specify device ID and custom constraints.
+  
+  **Default constraints:**
+  ```typescript
+  {
+    echoCancellation: false,
+    noiseSuppression: false,
+    autoGainControl: false,
+    latency: 0
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="stopStream" type="() => void">
+  Stop the microphone stream and revoke access.
+</ResponseField>
+
+<ResponseField name="error" type="Error | null">
+  Error object if access failed.
+</ResponseField>
+
+---
+
+## useMicrophoneLevel
+
+Monitor microphone input levels in real-time for VU meters.
+
+### Import
+
+```typescript
+import { useMicrophoneLevel } from '@waveform-playlist/recording';
+import type { UseMicrophoneLevelOptions } from '@waveform-playlist/recording';
+```
+
+### Usage
+
+```typescript
+function VUMeter() {
+  const { stream } = useMicrophoneAccess();
+  const { level, peakLevel, resetPeak } = useMicrophoneLevel(stream, {
+    updateRate: 60, // 60fps
+    smoothingTimeConstant: 0.8,
+  });
+
+  return (
+    <div>
+      <div style={{ width: `${level * 100}%`, height: '20px', background: 'green' }} />
+      <div style={{ left: `${peakLevel * 100}%`, position: 'absolute' }}>Peak</div>
+      <button onClick={resetPeak}>Reset Peak</button>
+    </div>
+  );
+}
+```
+
+### Parameters
+
+<ParamField path="stream" type="MediaStream | null" required>
+  MediaStream from `getUserMedia`.
+</ParamField>
+
+<ParamField path="options" type="UseMicrophoneLevelOptions">
+  Level monitoring configuration.
+</ParamField>
+
+### UseMicrophoneLevelOptions
+
+<ParamField path="updateRate" type="number" default={60}>
+  How often to update the level in Hz (frames per second).
+</ParamField>
+
+<ParamField path="fftSize" type="number" default={256}>
+  FFT size for the analyser.
+</ParamField>
+
+<ParamField path="smoothingTimeConstant" type="number" default={0.8}>
+  Smoothing time constant (0-1). Higher values = smoother but slower response.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="level" type="number">
+  Current audio level (0-1). 0 = silence, 1 = maximum level.
+</ResponseField>
+
+<ResponseField name="peakLevel" type="number">
+  Peak level since last reset (0-1).
+</ResponseField>
+
+<ResponseField name="resetPeak" type="() => void">
+  Reset the peak level to 0.
+</ResponseField>
+
+## Recording Architecture
+
+### Global AudioContext
+
+All recording uses the shared Tone.js AudioContext from `@waveform-playlist/playout`:
+
+```typescript
+import { getContext } from 'tone';
+
+const context = getContext(); // Same context as playlist
+```
+
+<Warning>
+  **Critical:** Call `resumeGlobalAudioContext()` on user interaction before recording. Modern browsers block AudioContext until user gesture.
+</Warning>
+
+### MediaStreamSource Per Hook (Firefox)
+
+Each recording hook creates its own `MediaStreamSource` to avoid cross-context errors in Firefox:
+
+```typescript
+// CORRECT - Create source from same context as other nodes
+const context = getContext();
+const source = context.createMediaStreamSource(stream);
+const meter = new Meter({ context });
+connect(source, meter);
+```
+
+Creating multiple sources from the same MediaStream is valid - they independently read from the stream.
+
+### AudioWorklet Recording
+
+`useRecording` uses AudioWorklet for low-latency capture:
+
+1. Loads `recording-processor.worklet.js` on first recording
+2. AudioWorklet runs in separate thread (no main thread blocking)
+3. Sends audio chunks via `postMessage`
+4. Accumulates chunks in main thread
+5. Creates final AudioBuffer on stop
+
+<Note>
+  **Debugging Note:** `console.log()` in AudioWorklet does NOT appear in browser console. Use `postMessage()` to send debug data to main thread.
+</Note>
+
+### VU Meter Normalization
+
+Tone.js Meter returns dB values. Convert to 0-1 range:
+
+```typescript
+const db = meter.getValue();
+const level = Math.max(0, Math.min(1, (db + 100) / 100));
+```
+
+Using -100dB floor for Firefox compatibility (reports lower dB than Chrome).
+
+### Recording-Optimized Constraints
+
+Default microphone constraints prioritize raw audio quality:
+
+```typescript
+{
+  echoCancellation: false,    // Disable echo cancellation
+  noiseSuppression: false,    // Disable noise suppression  
+  autoGainControl: false,     // Disable auto-gain
+  latency: 0                  // Low latency mode
+}
+```
+
+Override via `audioConstraints` parameter for voice recording or video calls.
+
+## Related
+
+- [Audio Tracks Hook](/api/hooks/audio-tracks) - Load recorded audio into playlist
+- [Playback Hooks](/api/hooks/playback) - Control playback during recording

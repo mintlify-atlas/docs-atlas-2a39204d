@@ -1,0 +1,197 @@
+---
+title: Stem Tracks
+description: Multi-track playback with independent mute, solo, volume, and pan controls per track
+---
+
+# Stem Tracks
+
+The stem tracks example demonstrates multi-track playback with full per-track controls. It loads 12 individual stems from Albert Kader's "Whiptails" minimal techno track and provides independent control over each.
+
+[View Live Demo →](https://naomiaro.github.io/waveform-playlist/examples/stem-tracks)
+
+## What It Demonstrates
+
+- **Progressive track loading** - Tracks appear as they load, no waiting for all files
+- **Per-track controls** - Independent mute, solo, volume, and pan for each track
+- **Keyboard shortcuts** - Space (play/pause), Escape (stop), 0 (rewind)
+- **Master volume** - Global volume control affecting all tracks
+- **Zoom controls** - Adjust waveform detail level
+- **Automatic scrolling** - Playhead stays visible during playback
+
+## Complete Example
+
+```tsx
+import React from 'react';
+import {
+  WaveformPlaylistProvider,
+  Waveform,
+  PlayButton,
+  PauseButton,
+  StopButton,
+  AudioPosition,
+  ZoomInButton,
+  ZoomOutButton,
+  AutomaticScrollCheckbox,
+  MasterVolumeControl,
+  useAudioTracks,
+  usePlaybackShortcuts,
+} from '@waveform-playlist/browser';
+
+// Stem tracks configuration - Albert Kader "Whiptails" minimal techno
+const audioConfigs = [
+  {
+    src: '/media/audio/AlbertKader_Whiptails/01_Loop1.opus',
+    name: 'Loop 1',
+  },
+  {
+    src: '/media/audio/AlbertKader_Whiptails/02_Loop2.opus',
+    name: 'Loop 2',
+  },
+  {
+    src: '/media/audio/AlbertKader_Whiptails/03_Kick.opus',
+    name: 'Kick',
+  },
+  {
+    src: '/media/audio/AlbertKader_Whiptails/04_Snare.opus',
+    name: 'Snare',
+  },
+  // ... more stems
+];
+
+// Component to enable keyboard shortcuts (must be inside provider)
+function PlaybackShortcuts() {
+  usePlaybackShortcuts();
+  return null;
+}
+
+export function StemTracksExample() {
+  // Load audio tracks PROGRESSIVELY - tracks appear as they load!
+  const { tracks, loading, error, loadedCount, totalCount } = useAudioTracks(
+    audioConfigs,
+    { progressive: true }
+  );
+
+  if (error) {
+    return <div>Error loading audio: {error}</div>;
+  }
+
+  return (
+    <WaveformPlaylistProvider
+      tracks={tracks}
+      samplesPerPixel={512}
+      mono
+      waveHeight={100}
+      automaticScroll={true}
+      controls={{ show: true, width: 200 }}
+      timescale
+      barWidth={4}
+      barGap={0}
+    >
+      <PlaybackShortcuts />
+      
+      <div className="controls">
+        <PlayButton />
+        <PauseButton />
+        <StopButton />
+        {loading && <span>Loading: {loadedCount}/{totalCount}</span>}
+        
+        <ZoomInButton />
+        <ZoomOutButton />
+        
+        <AudioPosition />
+        <MasterVolumeControl />
+        <AutomaticScrollCheckbox />
+      </div>
+
+      <Waveform />
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+## Key Features
+
+### Progressive Loading
+
+Tracks load independently and appear one-by-one. No waiting for all 12 stems to download:
+
+```tsx
+const { tracks, loading, loadedCount, totalCount } = useAudioTracks(
+  audioConfigs,
+  { progressive: true } // Each track appears as it loads!
+);
+```
+
+<Note>
+  The `progressive: true` option enables tracks to render as soon as they finish loading, rather than waiting for all tracks. This provides a much better user experience for multi-track projects.
+</Note>
+
+### Track Controls
+
+Each track has independent controls rendered in the sidebar:
+
+- **Mute/Solo** - Isolate or silence individual tracks
+- **Volume slider** - 0 to 1 range (linear gain)
+- **Pan slider** - -1 (left) to 1 (right)
+- **Track name** - Editable label
+
+```tsx
+<WaveformPlaylistProvider
+  controls={{ show: true, width: 200 }}
+  // ... other props
+>
+```
+
+### Keyboard Shortcuts
+
+Enable playback keyboard shortcuts using the `usePlaybackShortcuts` hook:
+
+```tsx
+function PlaybackShortcuts() {
+  usePlaybackShortcuts();
+  return null;
+}
+
+// Use inside provider:
+<WaveformPlaylistProvider ...>
+  <PlaybackShortcuts />
+  {/* ... rest of UI */}
+</WaveformPlaylistProvider>
+```
+
+**Default shortcuts:**
+- **Space** - Toggle play/pause
+- **Escape** - Stop playback
+- **0** - Rewind to start
+
+<Tip>
+  The `usePlaybackShortcuts` hook must be rendered inside the `WaveformPlaylistProvider` to access playback controls via context.
+</Tip>
+
+### Waveform Rendering
+
+Configure waveform appearance:
+
+```tsx
+<WaveformPlaylistProvider
+  samplesPerPixel={512}    // Zoom level (lower = more detail)
+  mono                      // Render as single channel
+  waveHeight={100}          // Track height in pixels
+  timescale                 // Show time markers
+  barWidth={4}              // Waveform bar width
+  barGap={0}                // Gap between bars
+>
+```
+
+## Source Code
+
+View the complete source code:
+- **Example component:** `website/src/components/examples/StemTracksExample.tsx`
+- **E2E tests:** `e2e/stem-tracks.spec.ts`
+
+## Related
+
+- [Loading Audio Guide](/guides/loading-audio)
+- [Progressive Loading](/guides/loading-audio#progressive-loading)
+- [Provider API](/api/providers/waveform-playlist-provider)
+- [useAudioTracks Hook](/api/hooks/audio-tracks)

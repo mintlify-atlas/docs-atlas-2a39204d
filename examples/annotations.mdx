@@ -1,0 +1,428 @@
+---
+title: Annotations
+description: Time-synced text annotations with keyboard navigation, drag-to-adjust, and JSON import/export
+---
+
+# Annotations
+
+The annotations example demonstrates time-synchronized text annotations with full editing capabilities, keyboard navigation, and Aeneas-format JSON import/export.
+
+[View Live Demo →](https://naomiaro.github.io/waveform-playlist/examples/annotations)
+
+## What It Demonstrates
+
+- **Time-synced annotations** - Text segments aligned to audio timeline
+- **Keyboard navigation** - Arrow keys to move between annotations
+- **Drag-to-adjust** - Resize annotation boundaries by dragging
+- **Inline editing** - Click to edit annotation text
+- **Continuous play** - Auto-play next annotation
+- **Link endpoints** - Adjusting one annotation moves adjacent ones
+- **JSON import/export** - Aeneas-format compatibility
+- **Custom actions** - Add buttons for split, delete, adjust timing
+
+## Complete Example
+
+```tsx
+import React, { useState } from 'react';
+import { DndContext } from '@dnd-kit/core';
+import {
+  WaveformPlaylistProvider,
+  Waveform,
+  PlayButton,
+  PauseButton,
+  useAnnotationDragHandlers,
+  useAnnotationKeyboardControls,
+  usePlaylistData,
+  usePlaylistControls,
+  DownloadAnnotationsButton,
+  ContinuousPlayCheckbox,
+  LinkEndpointsCheckbox,
+  EditableCheckbox,
+} from '@waveform-playlist/browser';
+import { AnnotationProvider, parseAeneas } from '@waveform-playlist/annotations';
+
+// Shakespeare's Sonnet 1 (Aeneas format)
+const defaultAnnotations = [
+  {
+    begin: "0.000",
+    end: "2.680",
+    id: "f000001",
+    lines: ["1"],
+  },
+  {
+    begin: "2.680",
+    end: "5.880",
+    id: "f000002",
+    lines: ["From fairest creatures we desire increase,"],
+  },
+  // ... more lines
+];
+
+// Annotation action buttons
+const annotationActions = [
+  {
+    text: '−',
+    title: 'Reduce annotation end by 0.010s',
+    action: (annotation, i, annotations, opts) => {
+      annotation.end -= 0.010;
+      if (opts.linkEndpoints) {
+        const next = annotations[i + 1];
+        if (next) next.start -= 0.010;
+      }
+    },
+  },
+  {
+    text: '+',
+    title: 'Increase annotation end by 0.010s',
+    action: (annotation, i, annotations, opts) => {
+      annotation.end += 0.010;
+      if (opts.linkEndpoints) {
+        const next = annotations[i + 1];
+        if (next) next.start += 0.010;
+      }
+    },
+  },
+  {
+    text: '✂',
+    title: 'Split annotation in half',
+    action: (annotation, i, annotations) => {
+      const halfDuration = (annotation.end - annotation.start) / 2;
+      annotations.splice(i + 1, 0, {
+        id: 'annotation_' + Date.now(),
+        start: annotation.end - halfDuration,
+        end: annotation.end,
+        lines: ['----'],
+      });
+      annotation.end = annotation.start + halfDuration;
+    },
+  },
+  {
+    text: '🗑',
+    title: 'Delete annotation',
+    action: (annotation, i, annotations) => {
+      annotations.splice(i, 1);
+    },
+  },
+];
+
+function AnnotationsContent() {
+  const { samplesPerPixel, sampleRate, duration } = usePlaylistData();
+  const { annotations, linkEndpoints } = usePlaylistState();
+  const { setAnnotations, setActiveAnnotationId, play } = usePlaylistControls();
+
+  // Drag handlers for resizing annotations
+  const { onDragStart, onDragMove, onDragEnd } = useAnnotationDragHandlers({
+    annotations,
+    onAnnotationsChange: setAnnotations,
+    samplesPerPixel,
+    sampleRate,
+    duration,
+    linkEndpoints,
+  });
+
+  // Keyboard navigation
+  useAnnotationKeyboardControls({
+    annotations,
+    onAnnotationsChange: setAnnotations,
+    onPlay: play,
+  });
+
+  return (
+    <DndContext
+      onDragStart={onDragStart}
+      onDragMove={onDragMove}
+      onDragEnd={onDragEnd}
+    >
+      <PlayButton />
+      <PauseButton />
+      <DownloadAnnotationsButton />
+      
+      <ContinuousPlayCheckbox />
+      <LinkEndpointsCheckbox />
+      <EditableCheckbox />
+
+      <Waveform
+        annotationControls={annotationActions}
+        annotationTextHeight={300}
+      />
+    </DndContext>
+  );
+}
+
+export function AnnotationsExample() {
+  const [tracks, setTracks] = useState([]);
+  const [annotations, setAnnotations] = useState(
+    defaultAnnotations.map(parseAeneas)
+  );
+
+  return (
+    <WaveformPlaylistProvider
+      tracks={tracks}
+      annotationList={{
+        annotations,
+        editable: true,
+        linkEndpoints: true,
+        isContinuousPlay: true,
+      }}
+      onAnnotationsChange={setAnnotations}
+    >
+      <AnnotationProvider>
+        <AnnotationsContent />
+      </AnnotationProvider>
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+## Key Features
+
+### Annotation Data Structure
+
+Annotations use a simple format:
+
+```tsx
+interface Annotation {
+  id: string;           // Unique identifier
+  start: number;        // Start time in seconds
+  end: number;          // End time in seconds
+  lines: string[];      // Text content (multi-line)
+  language?: string;    // Optional language code
+}
+```
+
+### Aeneas Format Support
+
+Import Aeneas-format JSON:
+
+```tsx
+import { parseAeneas } from '@waveform-playlist/annotations';
+
+const aeneasAnnotation = {
+  begin: "2.680",  // String format
+  end: "5.880",
+  id: "f000002",
+  lines: ["From fairest creatures we desire increase,"],
+};
+
+const parsed = parseAeneas(aeneasAnnotation);
+// Returns: { id: 'f000002', start: 2.68, end: 5.88, lines: [...] }
+```
+
+### Drag-to-Adjust Boundaries
+
+Enable draggable annotation boundaries:
+
+```tsx
+import { useAnnotationDragHandlers } from '@waveform-playlist/browser';
+
+const { onDragStart, onDragMove, onDragEnd } = useAnnotationDragHandlers({
+  annotations,
+  onAnnotationsChange: setAnnotations,
+  samplesPerPixel,
+  sampleRate,
+  duration,
+  linkEndpoints, // Move adjacent annotations when resizing
+});
+
+<DndContext
+  onDragStart={onDragStart}
+  onDragMove={onDragMove}
+  onDragEnd={onDragEnd}
+>
+  <Waveform annotationControls={actions} />
+</DndContext>
+```
+
+<Note>
+  Each annotation has two draggable handles (start and end). Dragging adjusts the annotation boundaries in real-time.
+</Note>
+
+### Keyboard Navigation
+
+Navigate annotations with keyboard:
+
+```tsx
+import { useAnnotationKeyboardControls } from '@waveform-playlist/browser';
+
+useAnnotationKeyboardControls({
+  annotations,
+  activeAnnotationId,
+  onAnnotationsChange: setAnnotations,
+  onActiveAnnotationChange: setActiveAnnotationId,
+  onPlay: play,
+  duration,
+  linkEndpoints,
+  continuousPlay,
+});
+```
+
+**Keyboard shortcuts:**
+
+| Key | Action |
+|-----|--------|
+| **A** | Add annotation at playhead |
+| **ArrowUp** | Select previous annotation |
+| **ArrowDown** | Select next annotation |
+| **Enter** | Play selected annotation |
+| **Space** | Play/pause |
+
+### Link Endpoints
+
+When enabled, adjusting one annotation moves adjacent annotations:
+
+```tsx
+<LinkEndpointsCheckbox />
+
+// In annotation action:
+action: (annotation, i, annotations, opts) => {
+  annotation.end += 0.010;
+  
+  // Move next annotation start if linked
+  if (opts.linkEndpoints) {
+    const next = annotations[i + 1];
+    if (next) {
+      next.start += 0.010;
+    }
+  }
+}
+```
+
+This keeps annotations gap-free when editing.
+
+### Continuous Play
+
+Auto-play the next annotation when current one finishes:
+
+```tsx
+<ContinuousPlayCheckbox />
+
+<WaveformPlaylistProvider
+  annotationList={{
+    annotations,
+    isContinuousPlay: true,
+  }}
+>
+```
+
+Perfect for reviewing transcriptions or subtitles.
+
+### Annotation Actions
+
+Add custom action buttons:
+
+```tsx
+const actions = [
+  {
+    text: '✂',
+    title: 'Split annotation',
+    action: (annotation, index, annotations, options) => {
+      const mid = (annotation.start + annotation.end) / 2;
+      
+      // Insert new annotation at midpoint
+      annotations.splice(index + 1, 0, {
+        id: 'annotation_' + Date.now(),
+        start: mid,
+        end: annotation.end,
+        lines: ['New segment'],
+      });
+      
+      // Trim original
+      annotation.end = mid;
+    },
+  },
+];
+
+<Waveform annotationControls={actions} />
+```
+
+Buttons appear next to each annotation.
+
+### JSON Import/Export
+
+Export annotations to JSON:
+
+```tsx
+import { DownloadAnnotationsButton } from '@waveform-playlist/browser';
+
+<DownloadAnnotationsButton />
+// Downloads annotations.json in Aeneas format
+```
+
+Import from file:
+
+```tsx
+const handleJsonUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const jsonData = JSON.parse(event.target.result as string);
+    const parsed = jsonData.map(parseAeneas);
+    setAnnotations(parsed);
+  };
+  reader.readAsText(file);
+};
+
+<input type="file" accept=".json" onChange={handleJsonUpload} />
+```
+
+### Adding Annotations Programmatically
+
+Add new annotations at runtime:
+
+```tsx
+const addAnnotationAtPlayhead = () => {
+  const newAnnotation = {
+    id: 'annotation_' + Date.now(),
+    start: currentTime,
+    end: currentTime + 3.0, // 3 second duration
+    lines: ['New annotation'],
+  };
+
+  // Insert in chronological order
+  const sorted = [...annotations].sort((a, b) => a.start - b.start);
+  const insertIndex = sorted.findIndex(a => a.start > currentTime);
+  
+  const updated = insertIndex === -1
+    ? [...sorted, newAnnotation]
+    : [
+        ...sorted.slice(0, insertIndex),
+        newAnnotation,
+        ...sorted.slice(insertIndex),
+      ];
+
+  setAnnotations(updated);
+};
+```
+
+### Inline Text Editing
+
+Edit annotation text by clicking when editable:
+
+```tsx
+<EditableCheckbox />
+
+<WaveformPlaylistProvider
+  annotationList={{
+    annotations,
+    editable: true, // Enable inline editing
+  }}
+>
+```
+
+Click annotation text to edit in place.
+
+## Source Code
+
+View the complete source code:
+- **Example component:** `website/src/components/examples/AnnotationsExample.tsx`
+- **Annotations package:** `packages/annotations/src/`
+- **E2E tests:** `e2e/annotations.spec.ts`
+
+## Related
+
+- [Annotations Guide](/guides/annotations)
+- [useAnnotationDragHandlers Hook](/api/hooks/playback)
+- [useAnnotationKeyboardControls Hook](/api/hooks/keyboard-shortcuts)
+- [AnnotationProvider](/api/providers/annotation-provider)

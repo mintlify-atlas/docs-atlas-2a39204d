@@ -1,0 +1,368 @@
+---
+title: '@waveform-playlist/playout'
+description: 'Audio playback engine using Tone.js'
+---
+
+# @waveform-playlist/playout
+
+The playout package provides the audio playback engine for Waveform Playlist. It implements a Tone.js-based adapter that handles multitrack playback, synchronization, effects routing, and loop management.
+
+## Installation
+
+```bash
+npm install @waveform-playlist/playout tone
+```
+
+### Peer Dependencies
+
+<ParamField path="tone" type="string" required>
+  Tone.js 15.0.0 or later
+</ParamField>
+
+<ParamField path="@waveform-playlist/engine" type="string">
+  Engine package (optional - only needed for direct engine integration)
+</ParamField>
+
+## Main Exports
+
+### Playout Classes
+
+<ParamField path="TonePlayout" type="class">
+  Main playout coordinator that manages multiple tracks and the Tone.js Transport
+</ParamField>
+
+<ParamField path="ToneTrack" type="class">
+  Individual track with volume, pan, mute, and effects chain
+</ParamField>
+
+### Adapter
+
+<ParamField path="createToneAdapter(options)" type="function">
+  Factory function that creates a playout adapter for engine integration. Returns adapter with play(), stop(), setTracks(), etc.
+</ParamField>
+
+### Audio Context Management
+
+<ParamField path="getGlobalContext()" type="function">
+  Get the shared Tone.js Context instance (wraps standardized-audio-context for Firefox compatibility)
+</ParamField>
+
+<ParamField path="getGlobalAudioContext()" type="function">
+  Get the underlying native AudioContext from Tone.js
+</ParamField>
+
+<ParamField path="getGlobalToneContext()" type="function">
+  Get the Tone.js Context object
+</ParamField>
+
+<ParamField path="resumeGlobalAudioContext()" type="function">
+  Resume the AudioContext (required after user interaction)
+</ParamField>
+
+<ParamField path="getGlobalAudioContextState()" type="function">
+  Get current AudioContext state (suspended, running, closed)
+</ParamField>
+
+<ParamField path="closeGlobalAudioContext()" type="function">
+  Close the global AudioContext (cleanup)
+</ParamField>
+
+### MediaStream Management
+
+<ParamField path="getMediaStreamSource(stream)" type="function">
+  Get or create a MediaStreamSource for a given MediaStream
+</ParamField>
+
+<ParamField path="releaseMediaStreamSource(stream)" type="function">
+  Release a MediaStreamSource when no longer needed
+</ParamField>
+
+<ParamField path="hasMediaStreamSource(stream)" type="function">
+  Check if a MediaStreamSource exists for a stream
+</ParamField>
+
+### Fade Utilities
+
+<ParamField path="applyFadeIn(gainParam, config, audioContext)" type="function">
+  Apply fade-in envelope to an AudioParam
+</ParamField>
+
+<ParamField path="applyFadeOut(gainParam, config, audioContext)" type="function">
+  Apply fade-out envelope to an AudioParam
+</ParamField>
+
+<ParamField path="getUnderlyingAudioParam(signal)" type="function">
+  Access raw AudioParam from Tone.js Signal (for suspended context workarounds)
+</ParamField>
+
+<ParamField path="FadeConfig" type="interface">
+  Fade configuration with start time, duration, and curve type
+</ParamField>
+
+<ParamField path="FadeType" type="type">
+  Fade curve type: `'linear' | 'exponential' | 'logarithmic' | 'sCurve'`
+</ParamField>
+
+## Usage Examples
+
+### Basic Playback
+
+```typescript
+import { TonePlayout, getGlobalContext } from '@waveform-playlist/playout';
+import type { ClipTrack } from '@waveform-playlist/core';
+
+// Get shared audio context
+const context = getGlobalContext();
+
+// Create playout instance
+const playout = new TonePlayout({
+  tracks: myTracks, // ClipTrack[] from @waveform-playlist/core
+  context,
+});
+
+// Initialize (resumes AudioContext)
+await playout.init();
+
+// Start playback
+playout.play();
+
+// Stop playback
+playout.stop();
+
+// Cleanup
+playout.dispose();
+```
+
+### Engine Integration
+
+```typescript
+import { createToneAdapter } from '@waveform-playlist/playout';
+import { WaveformEngine } from '@waveform-playlist/engine';
+
+const adapter = createToneAdapter({
+  onComplete: () => console.log('Playback finished'),
+  onError: (error) => console.error('Playback error:', error),
+});
+
+const engine = new WaveformEngine({
+  adapter,
+  sampleRate: 44100,
+});
+
+engine.setTracks(tracks);
+await engine.init();
+engine.play();
+```
+
+### Loop Region
+
+```typescript
+import { TonePlayout } from '@waveform-playlist/playout';
+
+const playout = new TonePlayout({ tracks, context });
+await playout.init();
+
+// Set loop region (in seconds)
+playout.setLoop({
+  enabled: true,
+  start: 5.0,
+  end: 10.0,
+});
+
+playout.play(); // Will loop between 5s and 10s
+```
+
+### Master Effects
+
+```typescript
+import { TonePlayout } from '@waveform-playlist/playout';
+import * as Tone from 'tone';
+
+const masterEffects = (graphEnd, destination, isOffline) => {
+  const reverb = new Tone.Reverb({ decay: 2.5, wet: 0.3 });
+  const eq = new Tone.EQ3({ low: -6, mid: 3, high: 0 });
+  
+  graphEnd.connect(eq);
+  eq.connect(reverb);
+  reverb.connect(destination);
+  
+  return () => {
+    reverb.dispose();
+    eq.dispose();
+  };
+};
+
+const playout = new TonePlayout({
+  tracks,
+  context,
+  masterEffects,
+});
+```
+
+### Track-Level Effects
+
+```typescript
+import type { ClipTrack } from '@waveform-playlist/core';
+import * as Tone from 'tone';
+
+const track: ClipTrack = {
+  id: '1',
+  name: 'Guitar',
+  clips: [...],
+  volume: 0.8,
+  pan: 0,
+  muted: false,
+  soloed: false,
+  effects: (graphEnd, destination, isOffline) => {
+    const delay = new Tone.FeedbackDelay('8n', 0.4);
+    const distortion = new Tone.Distortion(0.6);
+    
+    graphEnd.connect(distortion);
+    distortion.connect(delay);
+    delay.connect(destination);
+    
+    return () => {
+      delay.dispose();
+      distortion.dispose();
+    };
+  },
+};
+```
+
+### Custom Fade Curves
+
+```typescript
+import { applyFadeIn, applyFadeOut } from '@waveform-playlist/playout';
+import type { Fade } from '@waveform-playlist/core';
+
+const fadeIn: Fade = {
+  duration: 0.5,
+  type: 'logarithmic',
+};
+
+const fadeOut: Fade = {
+  duration: 0.3,
+  type: 'exponential',
+};
+
+// Applied automatically by ToneTrack for each clip
+// But you can use these utilities directly:
+const gainNode = context.createGain();
+applyFadeIn(gainNode.gain, {
+  startTime: 0,
+  duration: fadeIn.duration,
+  type: fadeIn.type,
+}, context);
+```
+
+## Architecture
+
+### Transport.schedule() Pattern
+
+Unlike traditional approaches using `Tone.Player.sync()`, this package uses `Transport.schedule()` with native `AudioBufferSourceNode` instances:
+
+**Audio Graph (per clip):**
+```
+AudioBufferSourceNode (native, one-shot, created per play/loop)
+  → GainNode (native, per-clip fade envelope)
+  → Volume.input (Tone.js, shared per-track)
+  → Panner (Tone.js, shared per-track)  
+  → muteGain (Tone.js, shared per-track)
+  → effects chain or destination
+```
+
+**Benefits:**
+- No Tone.js private internals workarounds needed
+- Native `AudioBufferSourceNode` for clean one-shot playback
+- Native `GainNode.gain` is already an `AudioParam` (no wrapper)
+- Clean loop handling via Transport events
+
+### Loop Handling
+
+Loop management uses Tone.js Transport native loop support:
+
+1. Set `Transport.loop = true`, `Transport.loopStart`, `Transport.loopEnd`
+2. Transport `loop` event fires before schedule callbacks
+3. Loop handler stops all sources, cancels fades, restarts mid-clip sources
+4. Ghost tick prevention via `Clock._lastUpdate` advancement
+
+### Mid-Clip Start
+
+When playback starts mid-clip (e.g., offset 5s, clip spans 3s-8s):
+
+- `Transport.schedule(cb, 3s)` won't fire (already passed)
+- `startMidClipSources(5s, now)` creates sources with adjusted offset/duration
+- Strict `<` guard prevents double-creation with schedule callbacks
+
+### Firefox Compatibility
+
+Uses Tone.js `Context` class which wraps `standardized-audio-context` to normalize browser differences:
+
+- Fixes `AudioListener` parameter errors in Firefox
+- Fixes `AudioWorkletNode` context type errors in Firefox
+- All context creation goes through `getGlobalContext()`
+
+## Important Notes
+
+### AudioContext Initialization
+
+**Critical:** Call `await playout.init()` or `await Tone.start()` after user interaction before playback. Without this, `Tone.now()` returns null → RangeError.
+
+```typescript
+// In a click handler:
+button.addEventListener('click', async () => {
+  await playout.init(); // Resumes AudioContext
+  playout.play();
+});
+```
+
+### Master Volume Range
+
+Uses Web Audio standard **0.0 to 1.0 range**, not 0-100:
+
+```typescript
+playout.setMasterVolume(0.8); // 80% volume
+```
+
+### Tone.js Internal Access
+
+The `getUnderlyingAudioParam()` utility accesses Tone.js private `_param` property to work around Signal wrapper limitations when AudioContext is suspended. This is a **private internal** - version must be pinned carefully.
+
+### Rebuild-on-setTracks
+
+The adapter uses a rebuild pattern - calling `setTracks()` disposes the old `TonePlayout` and creates a fresh one. A generation counter prevents stale completion callbacks.
+
+## Type Definitions
+
+```typescript
+export interface TonePlayoutOptions {
+  tracks: ClipTrack[];
+  context: Context;
+  masterEffects?: EffectsFunction;
+}
+
+export interface ToneTrackOptions {
+  track: ClipTrack;
+  context: Context;
+  destination: ToneAudioNode;
+  isOffline?: boolean;
+}
+
+export type EffectsFunction = (
+  graphEnd: Gain,
+  destination: ToneAudioNode,
+  isOffline: boolean
+) => void | (() => void);
+
+export type TrackEffectsFunction = (
+  graphEnd: Gain,
+  destination: ToneAudioNode,
+  isOffline: boolean  
+) => void | (() => void);
+```
+
+## Related Packages
+
+- [Browser](/api/packages/browser) - High-level React integration
+- [Core](/api/packages/core) - ClipTrack and AudioClip types
+- [Recording](/api/packages/recording) - Uses the same global AudioContext

@@ -1,0 +1,383 @@
+---
+title: '@waveform-playlist/annotations'
+description: 'Annotation support for waveform-playlist'
+---
+
+# @waveform-playlist/annotations
+
+The annotations package provides components and utilities for adding time-based annotations to audio waveforms. Annotations can be created, edited, dragged, and exported in multiple formats.
+
+## Installation
+
+```bash
+npm install @waveform-playlist/annotations @waveform-playlist/browser react styled-components
+```
+
+### Peer Dependencies
+
+<ParamField path="@waveform-playlist/browser" type="string" required>
+  Browser package (workspace:*)
+</ParamField>
+
+<ParamField path="react" type="string" required>
+  React 18.0.0 or later
+</ParamField>
+
+<ParamField path="styled-components" type="string" required>
+  Styled Components 6.0.0 or later
+</ParamField>
+
+<ParamField path="@dnd-kit/core" type="string" required>
+  DnD Kit 6.0.0+ for drag-and-drop
+</ParamField>
+
+<ParamField path="@dnd-kit/modifiers" type="string" required>
+  DnD Kit modifiers 9.0.0+
+</ParamField>
+
+## Main Exports
+
+### Provider
+
+<ParamField path="AnnotationProvider" type="component">
+  Registers annotation components with the browser package. Wrap your app with this to enable annotation support.
+</ParamField>
+
+### Components
+
+<ParamField path="Annotation" type="component">
+  Single annotation box with text label
+</ParamField>
+
+<ParamField path="AnnotationBox" type="component">
+  Visual annotation region with drag handles
+</ParamField>
+
+<ParamField path="AnnotationBoxesWrapper" type="component">
+  Container for multiple annotation boxes
+</ParamField>
+
+<ParamField path="AnnotationsTrack" type="component">
+  Complete annotation track with all annotations
+</ParamField>
+
+<ParamField path="AnnotationText" type="component">
+  Editable annotation label text
+</ParamField>
+
+### Control Components
+
+<ParamField path="ContinuousPlayCheckbox" type="component">
+  Toggle continuous play through annotations
+</ParamField>
+
+<ParamField path="LinkEndpointsCheckbox" type="component">
+  Toggle linking annotation endpoints (moving one adjusts neighbors)
+</ParamField>
+
+<ParamField path="EditableCheckbox" type="component">
+  Toggle annotation editing mode
+</ParamField>
+
+<ParamField path="DownloadAnnotationsButton" type="component">
+  Export annotations as JSON or Aeneas format
+</ParamField>
+
+### Hooks
+
+<ParamField path="useAnnotationControls(options)" type="hook">
+  Provides annotation state and control functions (create, update, delete, navigate)
+</ParamField>
+
+### Parsers
+
+<ParamField path="parseAeneas(text)" type="function">
+  Parse Aeneas format annotation file to AnnotationData array
+</ParamField>
+
+<ParamField path="serializeAeneas(annotations)" type="function">
+  Serialize AnnotationData array to Aeneas format string
+</ParamField>
+
+### Re-exported Types
+
+From `@waveform-playlist/core`:
+
+<ParamField path="AnnotationData" type="interface">
+  Annotation with id, start, end, label, and optional color
+</ParamField>
+
+<ParamField path="AnnotationFormat" type="type">
+  Export format: `'json' | 'aeneas'`
+</ParamField>
+
+<ParamField path="AnnotationListOptions" type="interface">
+  Configuration: annotations array, editable, linkEndpoints, continuousPlay, etc.
+</ParamField>
+
+<ParamField path="AnnotationEventMap" type="interface">
+  Event types for annotation interactions
+</ParamField>
+
+<ParamField path="AnnotationAction" type="type">
+  Action types: create, update, delete, select
+</ParamField>
+
+## Usage Example
+
+### Basic Integration
+
+```tsx
+import {
+  WaveformPlaylistProvider,
+  PlaylistVisualization,
+  PlaylistAnnotationList,
+} from '@waveform-playlist/browser';
+import {
+  AnnotationProvider,
+  ContinuousPlayCheckbox,
+  EditableCheckbox,
+  DownloadAnnotationsButton,
+} from '@waveform-playlist/annotations';
+import type { AnnotationData } from '@waveform-playlist/core';
+import { useState } from 'react';
+
+function App() {
+  const [annotations, setAnnotations] = useState<AnnotationData[]>([
+    { id: '1', start: 1.0, end: 3.5, label: 'Intro' },
+    { id: '2', start: 3.5, end: 8.2, label: 'Verse 1' },
+    { id: '3', start: 8.2, end: 12.0, label: 'Chorus' },
+  ]);
+
+  const [tracks, setTracks] = useState([...]);
+
+  return (
+    <AnnotationProvider>
+      <WaveformPlaylistProvider
+        tracks={tracks}
+        onTracksChange={setTracks}
+        annotationList={{
+          annotations,
+          editable: true,
+          linkEndpoints: false,
+          continuousPlay: false,
+        }}
+        onAnnotationsChange={setAnnotations} // Required for edits to persist!
+      >
+        <div>
+          <EditableCheckbox />
+          <ContinuousPlayCheckbox />
+          <DownloadAnnotationsButton />
+        </div>
+        
+        <PlaylistVisualization />
+        <PlaylistAnnotationList />
+      </WaveformPlaylistProvider>
+    </AnnotationProvider>
+  );
+}
+```
+
+### Custom Annotation Controls
+
+```tsx
+import { useAnnotationControls } from '@waveform-playlist/annotations';
+import { usePlaylistControls } from '@waveform-playlist/browser';
+
+function CustomAnnotationControls() {
+  const {
+    annotations,
+    selectedAnnotation,
+    createAnnotation,
+    updateAnnotation,
+    deleteAnnotation,
+    selectNext,
+    selectPrevious,
+  } = useAnnotationControls({
+    initialAnnotations: [],
+    editable: true,
+  });
+  
+  const { currentTime, seek } = usePlaylistControls();
+
+  const handleAddAnnotation = () => {
+    createAnnotation({
+      start: currentTime,
+      end: currentTime + 5.0,
+      label: 'New Annotation',
+    });
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedAnnotation) {
+      deleteAnnotation(selectedAnnotation.id);
+    }
+  };
+
+  const handleNavigateNext = () => {
+    const next = selectNext();
+    if (next) {
+      seek(next.start);
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={handleAddAnnotation}>Add Annotation</button>
+      <button onClick={handleDeleteSelected}>Delete Selected</button>
+      <button onClick={handleNavigateNext}>Next Annotation</button>
+      <div>Annotations: {annotations.length}</div>
+    </div>
+  );
+}
+```
+
+### Keyboard Navigation
+
+```tsx
+import { useAnnotationKeyboardControls } from '@waveform-playlist/browser';
+import { useAnnotationControls } from '@waveform-playlist/annotations';
+
+function AnnotationEditor() {
+  const annotationControls = useAnnotationControls({
+    initialAnnotations: myAnnotations,
+    editable: true,
+  });
+
+  // Enable keyboard shortcuts:
+  // - Arrow keys: Navigate annotations
+  // - Delete/Backspace: Delete selected annotation  
+  // - Enter: Play selected annotation
+  // - E: Toggle editing
+  useAnnotationKeyboardControls({
+    annotationControls,
+    enableAutoScroll: true,
+  });
+
+  return <PlaylistAnnotationList />;
+}
+```
+
+### Import/Export Annotations
+
+```tsx
+import {
+  parseAeneas,
+  serializeAeneas,
+  type AeneasFragment,
+} from '@waveform-playlist/annotations';
+import type { AnnotationData } from '@waveform-playlist/core';
+
+// Load Aeneas format file
+const aeneasText = await fetch('/annotations.txt').then(r => r.text());
+const annotations: AnnotationData[] = parseAeneas(aeneasText);
+
+// Export to Aeneas format
+const aeneasOutput = serializeAeneas(annotations);
+console.log(aeneasOutput);
+// Output:
+// 0.000|1.500|First segment
+// 1.500|3.200|Second segment
+// 3.200|5.800|Third segment
+
+// Export to JSON
+const jsonOutput = JSON.stringify(annotations, null, 2);
+const blob = new Blob([jsonOutput], { type: 'application/json' });
+const url = URL.createObjectURL(blob);
+```
+
+### Custom Annotation Rendering
+
+```tsx
+import { AnnotationBox } from '@waveform-playlist/annotations';
+import type { AnnotationData } from '@waveform-playlist/core';
+
+function CustomAnnotationBox({ annotation }: { annotation: AnnotationData }) {
+  return (
+    <AnnotationBox
+      annotation={annotation}
+      style={{
+        backgroundColor: annotation.color || '#3b82f6',
+        opacity: 0.3,
+        borderLeft: '2px solid #1d4ed8',
+        borderRight: '2px solid #1d4ed8',
+      }}
+    />
+  );
+}
+```
+
+## Integration Pattern
+
+This package uses an **integration context pattern**:
+
+1. `@waveform-playlist/browser` defines `AnnotationIntegrationContext` (interface + context)
+2. This package provides `AnnotationProvider` that supplies components/functions
+3. Browser components use `useAnnotationIntegration()` and gracefully return `null` if unavailable
+
+This allows annotations to be **optional** - the browser package works without this package installed.
+
+## Important Notes
+
+### Always Pair annotationList with onAnnotationsChange
+
+**Critical:** When using `annotationList` on `WaveformPlaylistProvider`, always provide `onAnnotationsChange`. Without the callback, annotation edits won't persist and a console warning fires:
+
+```tsx
+<WaveformPlaylistProvider
+  annotationList={{ annotations, editable: true }}
+  onAnnotationsChange={setAnnotations} // Required!
+>
+```
+
+### Context Hook Throws
+
+`useAnnotationIntegration()` throws if used without `<AnnotationProvider>`. This follows the Kent C. Dodds context pattern - fail fast with a clear error:
+
+```tsx
+// This will throw:
+function MyComponent() {
+  const integration = useAnnotationIntegration(); // Error: Must wrap with AnnotationProvider
+}
+
+// Correct usage:
+<AnnotationProvider>
+  <MyComponent /> {/* Now it works */}
+</AnnotationProvider>
+```
+
+### Annotation Data Structure
+
+Annotations use floating-point seconds for start/end times:
+
+```typescript
+interface AnnotationData {
+  id: string;           // Unique identifier
+  start: number;        // Start time in seconds (float)
+  end: number;          // End time in seconds (float)
+  label: string;        // Text label
+  color?: string;       // Optional color (CSS color)
+}
+```
+
+## Aeneas Format
+
+Aeneas format is a simple text-based format:
+
+```
+startTime|endTime|label
+0.000|1.500|First segment
+1.500|3.200|Second segment  
+3.200|5.800|Third segment
+```
+
+- Times in seconds with 3 decimal places
+- Pipe-delimited
+- One annotation per line
+- UTF-8 encoding
+
+## Related Packages
+
+- [Browser](/api/packages/browser) - Provides `useAnnotationKeyboardControls` and annotation integration context
+- [Core](/api/packages/core) - Defines `AnnotationData` type
+- [UI Components](/api/packages/ui-components) - Base visualization components

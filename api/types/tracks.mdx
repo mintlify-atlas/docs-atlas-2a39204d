@@ -1,0 +1,265 @@
+---
+title: Track Types
+description: Type definitions for multi-track audio editing
+---
+
+## ClipTrack
+
+Represents a track containing multiple audio clips in the multi-track editing model.
+
+### Import
+
+```typescript
+import type { ClipTrack } from '@waveform-playlist/core';
+```
+
+### Type Definition
+
+```typescript
+interface ClipTrack {
+  id: string;
+  name: string;
+  clips: AudioClip[];
+  muted: boolean;
+  soloed: boolean;
+  volume: number;
+  pan: number;
+  color?: string;
+  height?: number;
+  effects?: TrackEffectsFunction;
+  renderMode?: RenderMode;
+  spectrogramConfig?: SpectrogramConfig;
+  spectrogramColorMap?: ColorMapValue;
+}
+```
+
+### Properties
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for this track
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Display name for this track
+</ResponseField>
+
+<ResponseField name="clips" type="AudioClip[]" required>
+  Array of audio clips on this track. See [Clip Types](/api/types/clips) for details.
+</ResponseField>
+
+<ResponseField name="muted" type="boolean" required>
+  Whether this track is muted
+</ResponseField>
+
+<ResponseField name="soloed" type="boolean" required>
+  Whether this track is soloed (only soloed tracks play when any track is soloed)
+</ResponseField>
+
+<ResponseField name="volume" type="number" required>
+  Track volume level (0.0 to 1.0+)
+</ResponseField>
+
+<ResponseField name="pan" type="number" required>
+  Stereo pan position (-1.0 = left, 0 = center, 1.0 = right)
+</ResponseField>
+
+<ResponseField name="color" type="string">
+  Optional color for visual distinction in the UI (any CSS color value)
+</ResponseField>
+
+<ResponseField name="height" type="number">
+  Track height in pixels for the UI
+</ResponseField>
+
+<ResponseField name="effects" type="TrackEffectsFunction">
+  Optional effects processing function for this track. See [Effects Types](/api/types/effects) for details.
+</ResponseField>
+
+<ResponseField name="renderMode" type="RenderMode">
+  Visualization render mode. Default: 'waveform'. Can be 'waveform' or 'spectrogram'.
+</ResponseField>
+
+<ResponseField name="spectrogramConfig" type="SpectrogramConfig">
+  Per-track spectrogram configuration (FFT size, window type, frequency scale, etc.)
+</ResponseField>
+
+<ResponseField name="spectrogramColorMap" type="ColorMapValue">
+  Per-track spectrogram color map name or custom color array
+</ResponseField>
+
+---
+
+## Track Factory
+
+Create a new track with sensible defaults using the `createTrack` helper function.
+
+### Import
+
+```typescript
+import { createTrack } from '@waveform-playlist/core';
+```
+
+### Function Signature
+
+```typescript
+function createTrack(options: CreateTrackOptions): ClipTrack
+```
+
+### Options
+
+```typescript
+interface CreateTrackOptions {
+  name: string;
+  clips?: AudioClip[];
+  muted?: boolean;
+  soloed?: boolean;
+  volume?: number;
+  pan?: number;
+  color?: string;
+  height?: number;
+  spectrogramConfig?: SpectrogramConfig;
+  spectrogramColorMap?: ColorMapValue;
+}
+```
+
+### Example
+
+```typescript
+import { createTrack } from '@waveform-playlist/core';
+
+const track = createTrack({
+  name: 'Vocals',
+  clips: [],
+  volume: 0.8,
+  pan: 0,
+  muted: false,
+  soloed: false,
+  color: '#3b82f6',
+  height: 128
+});
+```
+
+---
+
+## Timeline
+
+Represents the entire multi-track project/timeline.
+
+### Import
+
+```typescript
+import type { Timeline } from '@waveform-playlist/core';
+```
+
+### Type Definition
+
+```typescript
+interface Timeline {
+  tracks: ClipTrack[];
+  duration: number;
+  sampleRate: number;
+  name?: string;
+  tempo?: number;
+  timeSignature?: {
+    numerator: number;
+    denominator: number;
+  };
+}
+```
+
+### Properties
+
+<ResponseField name="tracks" type="ClipTrack[]" required>
+  All tracks in the timeline
+</ResponseField>
+
+<ResponseField name="duration" type="number" required>
+  Total timeline duration in seconds
+</ResponseField>
+
+<ResponseField name="sampleRate" type="number" required>
+  Sample rate for all audio (typically 44100 or 48000)
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Optional project name
+</ResponseField>
+
+<ResponseField name="tempo" type="number">
+  Optional tempo in BPM for grid snapping
+</ResponseField>
+
+<ResponseField name="timeSignature" type="object">
+  Optional time signature for grid snapping
+  <Expandable title="properties">
+    <ResponseField name="numerator" type="number">
+      Top number of time signature (e.g., 4 in 4/4)
+    </ResponseField>
+    <ResponseField name="denominator" type="number">
+      Bottom number of time signature (e.g., 4 in 4/4)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```typescript
+import { createTimeline, createTrack } from '@waveform-playlist/core';
+
+const track1 = createTrack({ name: 'Track 1' });
+const track2 = createTrack({ name: 'Track 2' });
+
+const timeline = createTimeline(
+  [track1, track2],
+  44100,
+  {
+    name: 'My Project',
+    tempo: 120,
+    timeSignature: { numerator: 4, denominator: 4 }
+  }
+);
+```
+
+---
+
+## Legacy Track Interface
+
+The library also supports a simpler single-track model for backward compatibility.
+
+### Import
+
+```typescript
+import type { Track } from '@waveform-playlist/core';
+```
+
+### Type Definition
+
+```typescript
+interface Track {
+  id: string;
+  name: string;
+  src?: string | AudioBuffer;
+  gain: number;
+  muted: boolean;
+  soloed: boolean;
+  stereoPan: number;
+  startTime: number;
+  endTime?: number;
+  fadeIn?: Fade;
+  fadeOut?: Fade;
+  cueIn?: number;
+  cueOut?: number;
+}
+```
+
+<Note>
+  This interface is maintained for backward compatibility. For new projects, use the clip-based model with `ClipTrack` and `AudioClip` instead.
+</Note>
+
+---
+
+## Related Types
+
+- [Clip Types](/api/types/clips) - AudioClip interface and factory functions
+- [Effects Types](/api/types/effects) - TrackEffectsFunction and effect definitions
+- [Annotation Types](/api/types/annotations) - AnnotationData and related types

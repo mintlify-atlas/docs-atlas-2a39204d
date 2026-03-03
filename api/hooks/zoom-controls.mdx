@@ -1,0 +1,181 @@
+---
+title: Zoom Controls Hook
+description: React hook for managing waveform zoom with engine delegation
+---
+
+The `useZoomControls` hook manages zoom state and controls via PlaylistEngine delegation. It uses the engine state subscription pattern to mirror zoom state from the engine.
+
+## useZoomControls
+
+Manage zoom level and controls for waveform visualization.
+
+### Import
+
+```typescript
+import { useZoomControls } from '@waveform-playlist/browser';
+import type { ZoomControls, UseZoomControlsProps } from '@waveform-playlist/browser';
+```
+
+### Usage
+
+```typescript
+import { useRef } from 'react';
+import { useZoomControls } from '@waveform-playlist/browser';
+import type { PlaylistEngine } from '@waveform-playlist/engine';
+
+function ZoomButtons() {
+  const engineRef = useRef<PlaylistEngine | null>(null);
+  const { samplesPerPixel, zoomIn, zoomOut, canZoomIn, canZoomOut } = useZoomControls({
+    engineRef,
+    initialSamplesPerPixel: 4096,
+  });
+
+  return (
+    <div>
+      <button onClick={zoomIn} disabled={!canZoomIn}>
+        Zoom In
+      </button>
+      <button onClick={zoomOut} disabled={!canZoomOut}>
+        Zoom Out
+      </button>
+      <span>Zoom: {samplesPerPixel} samples/pixel</span>
+    </div>
+  );
+}
+```
+
+### Integrated with Playlist Context
+
+The hook is automatically integrated in `WaveformPlaylistProvider`. Access zoom controls via `usePlaylistControls` and zoom state via `usePlaylistData`:
+
+```typescript
+import { usePlaylistControls, usePlaylistData } from '@waveform-playlist/browser';
+
+function ZoomControls() {
+  const { zoomIn, zoomOut } = usePlaylistControls();
+  const { samplesPerPixel, canZoomIn, canZoomOut } = usePlaylistData();
+
+  return (
+    <div>
+      <button onClick={zoomIn} disabled={!canZoomIn}>+</button>
+      <button onClick={zoomOut} disabled={!canZoomOut}>-</button>
+      <span>{samplesPerPixel} samp/px</span>
+    </div>
+  );
+}
+```
+
+### Parameters
+
+<ParamField path="engineRef" type="React.RefObject<PlaylistEngine | null>" required>
+  Ref to the PlaylistEngine instance. The engine owns the canonical zoom state.
+</ParamField>
+
+<ParamField path="initialSamplesPerPixel" type="number" required>
+  Initial zoom level in samples per pixel. Higher values = more zoomed out.
+  
+  **Typical values:**
+  - `2048` - Zoomed in (more detail)
+  - `4096` - Default zoom
+  - `8192` - Zoomed out (overview)
+</ParamField>
+
+### Return Value
+
+<ResponseField name="samplesPerPixel" type="number">
+  Current zoom level in samples per pixel. Mirrored from engine state.
+</ResponseField>
+
+<ResponseField name="zoomIn" type="() => void">
+  Zoom in (decrease samples per pixel). Delegates to `engine.zoomIn()`.
+</ResponseField>
+
+<ResponseField name="zoomOut" type="() => void">
+  Zoom out (increase samples per pixel). Delegates to `engine.zoomOut()`.
+</ResponseField>
+
+<ResponseField name="canZoomIn" type="boolean">
+  Whether zooming in is currently available. `false` when at maximum zoom.
+</ResponseField>
+
+<ResponseField name="canZoomOut" type="boolean">
+  Whether zooming out is currently available. `false` when at minimum zoom.
+</ResponseField>
+
+<ResponseField name="onEngineState" type="(state: EngineState) => void">
+  Internal callback for mirroring engine state. Called by the provider's `statechange` handler.
+</ResponseField>
+
+## Engine State Subscription Pattern
+
+The hook uses the engine state subscription pattern:
+
+1. **Engine owns state** - `samplesPerPixel`, `canZoomIn`, `canZoomOut` are stored in the engine
+2. **Emits events** - Engine emits `statechange` event on state changes
+3. **Hook mirrors state** - `onEngineState()` callback updates React state
+
+```typescript
+// Provider subscribes to engine events
+engine.on('statechange', (state) => {
+  zoomControls.onEngineState(state);
+  selectionState.onEngineState(state);
+  // ... other hooks
+});
+```
+
+### startTransition for Zoom Updates
+
+Zoom updates use React's `startTransition` to mark them as non-urgent:
+
+```typescript
+if (state.samplesPerPixel !== samplesPerPixelRef.current) {
+  samplesPerPixelRef.current = state.samplesPerPixel;
+  startTransition(() => {
+    setSamplesPerPixel(state.samplesPerPixel);
+  });
+}
+```
+
+This allows animation RAF callbacks to interleave with zoom re-renders during playback instead of being blocked.
+
+### Ref Guards
+
+The hook uses refs to prevent redundant `setState` calls:
+
+```typescript
+const samplesPerPixelRef = useRef(initialSamplesPerPixel);
+const canZoomInRef = useRef(true);
+const canZoomOutRef = useRef(true);
+
+// Only update if value changed
+if (state.samplesPerPixel !== samplesPerPixelRef.current) {
+  samplesPerPixelRef.current = state.samplesPerPixel;
+  setSamplesPerPixel(state.samplesPerPixel);
+}
+```
+
+This guards against high-frequency engine events (clip drags, play/pause) causing unnecessary React updates.
+
+## Zoom Levels
+
+The engine manages zoom level constraints:
+
+- **Minimum zoom** (max detail) - Typically 100 samples/pixel
+- **Maximum zoom** (full overview) - Calculated to fit entire duration in viewport
+
+Zoom increments are typically 2x (4096 → 2048 → 1024, etc.).
+
+## Web Worker Peak Resampling
+
+Waveform Playlist uses a two-stage peak generation strategy:
+
+1. **Load time** - Generate high-resolution peaks in web worker
+2. **Zoom time** - Resample peaks using `WaveformData.resample()` (instant)
+
+This makes zoom changes near-instant even for long audio files.
+
+## Related
+
+- [Playback Hooks](/api/hooks/playback) - Access zoom via `usePlaylistData`
+- [PlaylistEngine](https://github.com/naomiaro/waveform-playlist/blob/master/packages/engine/src/PlaylistEngine.ts) - Engine implementation
+- [WaveformData](https://github.com/bbc/waveform-data.js) - Peak resampling

@@ -1,0 +1,436 @@
+---
+title: Export WAV
+description: Render and export audio to WAV format with effects applied
+---
+
+# Export WAV
+
+The `useExportWav` hook renders your playlist to WAV format using OfflineAudioContext for fast, non-real-time rendering.
+
+## Basic Usage
+
+```typescript
+import { useExportWav } from '@waveform-playlist/browser';
+import { usePlaylistData } from '@waveform-playlist/browser';
+
+function ExportButton() {
+  const { exportWav, isExporting, progress } = useExportWav();
+  const { tracks, trackStates } = usePlaylistData();
+
+  const handleExport = async () => {
+    try {
+      const result = await exportWav(tracks, trackStates, {
+        filename: 'my-mix',
+        bitDepth: 16,
+        autoDownload: true,
+      });
+      
+      console.log('Export complete:', result);
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
+  };
+
+  return (
+    <button onClick={handleExport} disabled={isExporting}>
+      {isExporting ? `Exporting... ${(progress * 100).toFixed(0)}%` : 'Export WAV'}
+    </button>
+  );
+}
+```
+
+Location: `packages/browser/src/hooks/useExportWav.ts`
+
+## Hook Interface
+
+```typescript
+interface UseExportWavReturn {
+  exportWav: (
+    tracks: ClipTrack[],
+    trackStates: TrackState[],
+    options?: ExportOptions
+  ) => Promise<ExportResult>;
+  isExporting: boolean;        // Export in progress
+  progress: number;            // Export progress (0-1)
+  error: string | null;        // Error message if export failed
+}
+
+interface ExportResult {
+  audioBuffer: AudioBuffer;    // Rendered audio
+  blob: Blob;                  // WAV file as Blob
+  duration: number;            // Duration in seconds
+}
+```
+
+Location: `packages/browser/src/hooks/useExportWav.ts:49-61`
+
+## Export Options
+
+```typescript
+interface ExportOptions {
+  // File settings
+  filename?: string;                  // Filename without extension (default: 'export')
+  bitDepth?: 16 | 24 | 32;           // Bit depth (default: 16)
+  autoDownload?: boolean;             // Trigger download (default: true)
+  
+  // Export mode
+  mode?: 'master' | 'individual';    // 'master' = stereo mix, 'individual' = single track
+  trackIndex?: number;                // Track index for individual export
+  
+  // Effects
+  applyEffects?: boolean;             // Apply fades, etc. (default: true)
+  effectsFunction?: EffectsFunction;  // Master effects chain
+  createOfflineTrackEffects?: (trackId: string) => TrackEffectsFunction | undefined;
+  
+  // Progress
+  onProgress?: (progress: number) => void;  // Progress callback (0-1)
+}
+```
+
+Location: `packages/browser/src/hooks/useExportWav.ts:13-37`
+
+## Master Mix Export
+
+Export the entire mix as a stereo WAV:
+
+```typescript
+const { exportWav } = useExportWav();
+const { tracks, trackStates } = usePlaylistData();
+
+await exportWav(tracks, trackStates, {
+  filename: 'full-mix',
+  mode: 'master',
+  bitDepth: 24,
+});
+```
+
+This renders all non-muted tracks, respecting:
+- Track volume and pan
+- Solo/mute state
+- Clip fades
+- Clip positioning and trimming
+
+Location: `packages/browser/src/hooks/useExportWav.ts:87`
+
+## Individual Track Export
+
+Export a single track:
+
+```typescript
+await exportWav(tracks, trackStates, {
+  mode: 'individual',
+  trackIndex: 2,           // Export track at index 2
+  filename: 'vocals-only',
+});
+```
+
+Location: `packages/browser/src/hooks/useExportWav.ts:88-89`
+
+## Exporting with Master Effects
+
+Apply master effects during export using `Tone.Offline`:
+
+```typescript
+import { useDynamicEffects } from '@waveform-playlist/browser';
+
+function ExportWithEffects() {
+  const { exportWav } = useExportWav();
+  const { tracks, trackStates } = usePlaylistData();
+  const { createOfflineEffectsFunction } = useDynamicEffects();
+
+  const handleExport = async () => {
+    await exportWav(tracks, trackStates, {
+      filename: 'mix-with-effects',
+      effectsFunction: createOfflineEffectsFunction(),  // Include master effects
+    });
+  };
+
+  return <button onClick={handleExport}>Export with Effects</button>;
+}
+```
+
+`createOfflineEffectsFunction()` creates fresh effect instances in the offline context, avoiding AudioContext mismatch.
+
+Location: `packages/browser/src/hooks/useExportWav.ts:146-161`
+
+## Exporting with Per-Track Effects
+
+```typescript
+import { useTrackDynamicEffects } from '@waveform-playlist/browser';
+
+function ExportWithTrackEffects() {
+  const { exportWav } = useExportWav();
+  const { tracks, trackStates } = usePlaylistData();
+  const { createOfflineTrackEffectsFunction } = useTrackDynamicEffects();
+
+  const handleExport = async () => {
+    await exportWav(tracks, trackStates, {
+      filename: 'mix-with-track-effects',
+      createOfflineTrackEffects: createOfflineTrackEffectsFunction,
+    });
+  };
+
+  return <button onClick={handleExport}>Export with Track Effects</button>;
+}
+```
+
+Location: `packages/browser/src/hooks/useExportWav.ts:32-34`
+
+## Combining Master and Track Effects
+
+```typescript
+const { createOfflineEffectsFunction } = useDynamicEffects();
+const { createOfflineTrackEffectsFunction } = useTrackDynamicEffects();
+
+await exportWav(tracks, trackStates, {
+  filename: 'complete-mix',
+  effectsFunction: createOfflineEffectsFunction(),           // Master effects
+  createOfflineTrackEffects: createOfflineTrackEffectsFunction,  // Per-track effects
+});
+```
+
+## Bit Depth Options
+
+```typescript
+// 16-bit (CD quality, smaller file)
+await exportWav(tracks, trackStates, { bitDepth: 16 });
+
+// 24-bit (higher quality, larger file)
+await exportWav(tracks, trackStates, { bitDepth: 24 });
+
+// 32-bit float (maximum quality, largest file)
+await exportWav(tracks, trackStates, { bitDepth: 32 });
+```
+
+Location: `packages/browser/src/hooks/useExportWav.ts:93`
+
+## Progress Tracking
+
+```typescript
+const [exportProgress, setExportProgress] = useState(0);
+
+await exportWav(tracks, trackStates, {
+  filename: 'mix',
+  onProgress: (progress) => {
+    setExportProgress(progress);
+    console.log(`Export: ${(progress * 100).toFixed(0)}%`);
+  },
+});
+
+// Progress stages:
+// 0.0 - 0.5: Scheduling clips
+// 0.5 - 0.9: Rendering audio
+// 0.9 - 1.0: Encoding WAV
+```
+
+Location: `packages/browser/src/hooks/useExportWav.ts:36`
+
+## Custom Download Handling
+
+Disable auto-download to handle the blob yourself:
+
+```typescript
+const result = await exportWav(tracks, trackStates, {
+  filename: 'mix',
+  autoDownload: false,  // Don't trigger download
+});
+
+// Use the blob:
+const url = URL.createObjectURL(result.blob);
+
+// Upload to server:
+const formData = new FormData();
+formData.append('audio', result.blob, 'mix.wav');
+await fetch('/api/upload', { method: 'POST', body: formData });
+
+// Or create custom download:
+const a = document.createElement('a');
+a.href = url;
+a.download = 'custom-name.wav';
+a.click();
+URL.revokeObjectURL(url);
+```
+
+Location: `packages/browser/src/hooks/useExportWav.ts:89`
+
+## Solo/Mute Handling
+
+```typescript
+// If any track is soloed, only soloed tracks are exported
+const hasSolo = trackStates.some((state) => state.soloed);
+
+if (hasSolo) {
+  // Only soloed tracks are rendered
+} else {
+  // All non-muted tracks are rendered
+}
+```
+
+Location: `packages/browser/src/hooks/useExportWav.ts:138-139`
+
+## Fade Support
+
+Exports respect clip fades:
+
+```typescript
+const { tracks } = useAudioTracks([
+  {
+    src: 'audio.mp3',
+    fadeIn: { duration: 1.0, type: 'linear' },
+    fadeOut: { duration: 2.0, type: 'exponential' },
+  },
+]);
+
+// Fades are applied during export
+await exportWav(tracks, trackStates, {
+  applyEffects: true,  // Includes fades (default)
+});
+```
+
+Supported fade types:
+- `linear`: Straight line ramp
+- `exponential`: Curved exponential ramp
+- `logarithmic`: Inverse exponential
+- `sCurve`: Smooth ease-in-out
+
+Location: `packages/browser/src/hooks/useExportWav.ts:433-473`
+
+## Rendering with Tone.Offline
+
+When effects are present, rendering uses `Tone.Offline`:
+
+```typescript
+const buffer = await Offline(
+  async ({ transport, destination }) => {
+    // Create master volume node
+    const masterVolume = new Volume(0);
+    
+    // Apply effects chain
+    const cleanup = effectsFunction(masterVolume, destination, true);
+    
+    // Schedule all clips with track effects
+    for (const { track, state } of tracksToRender) {
+      const trackVolume = new Volume(gainToDb(state.volume));
+      const trackPan = new Panner(state.pan);
+      
+      // Apply per-track effects
+      const trackEffects = createOfflineTrackEffects?.(track.id);
+      if (trackEffects) {
+        trackEffects(trackMute, masterVolume, true);
+      }
+      
+      // Schedule clips
+      for (const clip of track.clips) {
+        const player = new Player(clip.audioBuffer);
+        // Apply fades, connect to track chain
+      }
+    }
+    
+    transport.start(0);
+  },
+  duration,
+  2,  // stereo
+  sampleRate
+);
+```
+
+Location: `packages/browser/src/hooks/useExportWav.ts:234-375`
+
+## Error Handling
+
+```typescript
+const { exportWav, error } = useExportWav();
+
+try {
+  await exportWav(tracks, trackStates);
+} catch (err) {
+  if (err.message.includes('No tracks to export')) {
+    // Playlist is empty
+  }
+  if (err.message.includes('Invalid track index')) {
+    // Individual export with bad index
+  }
+  console.error('Export failed:', err);
+}
+
+// Or use the error state:
+if (error) {
+  console.error('Last export failed:', error);
+}
+```
+
+Location: `packages/browser/src/hooks/useExportWav.ts:99-106`
+
+## Example: Complete Export UI
+
+```typescript
+import { useExportWav } from '@waveform-playlist/browser';
+import { useDynamicEffects } from '@waveform-playlist/browser';
+import { usePlaylistData } from '@waveform-playlist/browser';
+
+function ExportPanel() {
+  const { exportWav, isExporting, progress, error } = useExportWav();
+  const { tracks, trackStates } = usePlaylistData();
+  const { createOfflineEffectsFunction } = useDynamicEffects();
+  
+  const [bitDepth, setBitDepth] = useState<16 | 24 | 32>(16);
+  const [includeEffects, setIncludeEffects] = useState(true);
+
+  const handleExport = async () => {
+    try {
+      await exportWav(tracks, trackStates, {
+        filename: 'my-mix',
+        bitDepth,
+        effectsFunction: includeEffects ? createOfflineEffectsFunction() : undefined,
+        onProgress: (p) => console.log(`${(p * 100).toFixed(0)}%`),
+      });
+    } catch (err) {
+      console.error('Export failed:', err);
+    }
+  };
+
+  return (
+    <div>
+      <h3>Export Settings</h3>
+      
+      <label>
+        Bit Depth:
+        <select value={bitDepth} onChange={(e) => setBitDepth(Number(e.target.value) as 16 | 24 | 32)}>
+          <option value={16}>16-bit (CD Quality)</option>
+          <option value={24}>24-bit (High Quality)</option>
+          <option value={32}>32-bit Float (Maximum Quality)</option>
+        </select>
+      </label>
+      
+      <label>
+        <input
+          type="checkbox"
+          checked={includeEffects}
+          onChange={(e) => setIncludeEffects(e.target.checked)}
+        />
+        Include Effects
+      </label>
+      
+      <button onClick={handleExport} disabled={isExporting}>
+        {isExporting ? `Exporting ${(progress * 100).toFixed(0)}%` : 'Export WAV'}
+      </button>
+      
+      {error && <div style={{ color: 'red' }}>{error}</div>}
+    </div>
+  );
+}
+```
+
+## Important Notes
+
+- Export uses OfflineAudioContext for fast rendering (faster than real-time)
+- Effects must use `createOfflineEffectsFunction` to avoid AudioContext mismatch
+- Clips without `audioBuffer` (peaks-only) are skipped
+- Total duration includes all clips plus 0.1s buffer
+- Solo overrides mute (soloed tracks play even if muted)
+
+## Next Steps
+
+- [Audio Effects](/guides/audio-effects) - Apply effects before export
+- [Multi-Track Editing](/guides/multi-track-editing) - Arrange tracks
+- [Recording](/guides/recording) - Record and export

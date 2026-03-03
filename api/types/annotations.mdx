@@ -1,0 +1,470 @@
+---
+title: Annotation Types
+description: Type definitions for timeline annotations
+---
+
+## AnnotationData
+
+Base annotation data structure representing a time region with text labels.
+
+### Import
+
+```typescript
+import type { AnnotationData } from '@waveform-playlist/core';
+```
+
+### Type Definition
+
+```typescript
+interface AnnotationData {
+  id: string;
+  start: number;
+  end: number;
+  lines: string[];
+  language?: string;
+}
+```
+
+### Properties
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for this annotation
+</ResponseField>
+
+<ResponseField name="start" type="number" required>
+  Start time of the annotation in seconds
+</ResponseField>
+
+<ResponseField name="end" type="number" required>
+  End time of the annotation in seconds
+</ResponseField>
+
+<ResponseField name="lines" type="string[]" required>
+  Array of text lines for this annotation. Multi-line support allows for subtitles, transcriptions, or detailed notes.
+</ResponseField>
+
+<ResponseField name="language" type="string">
+  Optional language code (e.g., 'en', 'es', 'fr') for this annotation
+</ResponseField>
+
+### Example
+
+```typescript
+const annotation: AnnotationData = {
+  id: 'ann-1',
+  start: 10.5,
+  end: 15.2,
+  lines: ['Intro section', 'Fade in guitar'],
+  language: 'en'
+};
+```
+
+---
+
+## AnnotationFormat
+
+Defines how annotations are parsed from external formats and serialized back.
+
+### Import
+
+```typescript
+import type { AnnotationFormat } from '@waveform-playlist/core';
+```
+
+### Type Definition
+
+```typescript
+interface AnnotationFormat {
+  name: string;
+  parse: (data: unknown) => AnnotationData[];
+  serialize: (annotations: AnnotationData[]) => unknown;
+}
+```
+
+### Properties
+
+<ResponseField name="name" type="string" required>
+  Format name (e.g., 'srt', 'vtt', 'json')
+</ResponseField>
+
+<ResponseField name="parse" type="function" required>
+  Function to parse external data into AnnotationData array
+</ResponseField>
+
+<ResponseField name="serialize" type="function" required>
+  Function to serialize AnnotationData array back to external format
+</ResponseField>
+
+### Example
+
+```typescript
+import type { AnnotationFormat, AnnotationData } from '@waveform-playlist/core';
+
+const jsonFormat: AnnotationFormat = {
+  name: 'json',
+  parse: (data: unknown) => {
+    const parsed = JSON.parse(data as string);
+    return parsed.annotations as AnnotationData[];
+  },
+  serialize: (annotations: AnnotationData[]) => {
+    return JSON.stringify({ annotations }, null, 2);
+  }
+};
+```
+
+---
+
+## AnnotationListOptions
+
+Configuration options for annotation list behavior.
+
+### Import
+
+```typescript
+import type { AnnotationListOptions } from '@waveform-playlist/core';
+```
+
+### Type Definition
+
+```typescript
+interface AnnotationListOptions {
+  editable?: boolean;
+  linkEndpoints?: boolean;
+  isContinuousPlay?: boolean;
+}
+```
+
+### Properties
+
+<ResponseField name="editable" type="boolean">
+  Whether annotations can be edited by the user. Default: `true`
+</ResponseField>
+
+<ResponseField name="linkEndpoints" type="boolean">
+  Whether annotation endpoints are linked (moving one endpoint moves the other). Default: `false`
+</ResponseField>
+
+<ResponseField name="isContinuousPlay" type="boolean">
+  Whether to continue playing after an annotation ends. Default: `false`
+</ResponseField>
+
+---
+
+## AnnotationAction
+
+Defines an action control shown on annotation items (e.g., delete, split buttons).
+
+### Import
+
+```typescript
+import type { AnnotationAction } from '@waveform-playlist/core';
+```
+
+### Type Definition
+
+```typescript
+interface AnnotationAction {
+  class?: string;
+  text?: string;
+  title: string;
+  action: (
+    annotation: AnnotationData,
+    index: number,
+    annotations: AnnotationData[],
+    opts: AnnotationActionOptions
+  ) => void;
+}
+```
+
+### Properties
+
+<ResponseField name="class" type="string">
+  CSS class name for the action button
+</ResponseField>
+
+<ResponseField name="text" type="string">
+  Button text content
+</ResponseField>
+
+<ResponseField name="title" type="string" required>
+  Tooltip text for the action
+</ResponseField>
+
+<ResponseField name="action" type="function" required>
+  Function called when the action is triggered
+  
+  **Parameters:**
+  - `annotation` - The annotation being acted upon
+  - `index` - Index of the annotation in the list
+  - `annotations` - All annotations
+  - `opts` - Action options (linkEndpoints, continuousPlay, etc.)
+</ResponseField>
+
+### Example
+
+```typescript
+import type { AnnotationAction, AnnotationData } from '@waveform-playlist/core';
+
+const deleteAction: AnnotationAction = {
+  class: 'btn-delete',
+  text: 'Delete',
+  title: 'Remove this annotation',
+  action: (annotation, index, annotations, opts) => {
+    // Remove annotation from list
+    annotations.splice(index, 1);
+  }
+};
+
+const splitAction: AnnotationAction = {
+  class: 'btn-split',
+  text: 'Split',
+  title: 'Split annotation at current position',
+  action: (annotation, index, annotations, opts) => {
+    const splitTime = (annotation.start + annotation.end) / 2;
+    const newAnnotation: AnnotationData = {
+      id: `ann-${Date.now()}`,
+      start: splitTime,
+      end: annotation.end,
+      lines: [...annotation.lines],
+      language: annotation.language
+    };
+    annotation.end = splitTime;
+    annotations.splice(index + 1, 0, newAnnotation);
+  }
+};
+```
+
+---
+
+## AnnotationActionOptions
+
+Configuration options passed to annotation action handlers.
+
+### Import
+
+```typescript
+import type { AnnotationActionOptions } from '@waveform-playlist/core';
+```
+
+### Type Definition
+
+```typescript
+interface AnnotationActionOptions {
+  linkEndpoints?: boolean;
+  continuousPlay?: boolean;
+  [key: string]: unknown;
+}
+```
+
+### Properties
+
+<ResponseField name="linkEndpoints" type="boolean">
+  Whether annotation endpoints are linked
+</ResponseField>
+
+<ResponseField name="continuousPlay" type="boolean">
+  Whether to continue playing after an annotation ends
+</ResponseField>
+
+<ResponseField name="[key: string]" type="unknown">
+  Additional custom properties can be added
+</ResponseField>
+
+---
+
+## AnnotationEventMap
+
+Event handlers for annotation operations.
+
+### Import
+
+```typescript
+import type { AnnotationEventMap } from '@waveform-playlist/core';
+```
+
+### Type Definition
+
+```typescript
+interface AnnotationEventMap {
+  'annotation-select': (annotation: AnnotationData) => void;
+  'annotation-update': (annotation: AnnotationData) => void;
+  'annotation-delete': (id: string) => void;
+  'annotation-create': (annotation: AnnotationData) => void;
+}
+```
+
+### Event Handlers
+
+<ResponseField name="annotation-select" type="function">
+  Called when an annotation is selected
+  
+  **Parameters:**
+  - `annotation` - The selected annotation
+</ResponseField>
+
+<ResponseField name="annotation-update" type="function">
+  Called when an annotation is modified (time range or text changed)
+  
+  **Parameters:**
+  - `annotation` - The updated annotation
+</ResponseField>
+
+<ResponseField name="annotation-delete" type="function">
+  Called when an annotation is deleted
+  
+  **Parameters:**
+  - `id` - ID of the deleted annotation
+</ResponseField>
+
+<ResponseField name="annotation-create" type="function">
+  Called when a new annotation is created
+  
+  **Parameters:**
+  - `annotation` - The newly created annotation
+</ResponseField>
+
+---
+
+## RenderAnnotationItemProps
+
+Props passed to custom annotation item render functions.
+
+### Import
+
+```typescript
+import type { RenderAnnotationItemProps } from '@waveform-playlist/core';
+```
+
+### Type Definition
+
+```typescript
+interface RenderAnnotationItemProps {
+  annotation: AnnotationData;
+  index: number;
+  isActive: boolean;
+  onClick: () => void;
+  formatTime: (seconds: number) => string;
+}
+```
+
+### Properties
+
+<ResponseField name="annotation" type="AnnotationData" required>
+  The annotation data to render
+</ResponseField>
+
+<ResponseField name="index" type="number" required>
+  Index of this annotation in the list
+</ResponseField>
+
+<ResponseField name="isActive" type="boolean" required>
+  Whether this annotation is currently active/selected
+</ResponseField>
+
+<ResponseField name="onClick" type="() => void" required>
+  Function to call when the annotation item is clicked
+</ResponseField>
+
+<ResponseField name="formatTime" type="(seconds: number) => string" required>
+  Utility function to format time values for display
+</ResponseField>
+
+### Example
+
+```typescript
+import type { RenderAnnotationItemProps } from '@waveform-playlist/core';
+
+function renderAnnotationItem(props: RenderAnnotationItemProps) {
+  const { annotation, index, isActive, onClick, formatTime } = props;
+  
+  return (
+    <div 
+      className={`annotation-item ${isActive ? 'active' : ''}`}
+      onClick={onClick}
+    >
+      <div className="annotation-index">#{index + 1}</div>
+      <div className="annotation-time">
+        {formatTime(annotation.start)} - {formatTime(annotation.end)}
+      </div>
+      <div className="annotation-text">
+        {annotation.lines.map((line, i) => (
+          <p key={i}>{line}</p>
+        ))}
+      </div>
+      {annotation.language && (
+        <div className="annotation-language">{annotation.language}</div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## Usage Examples
+
+### Creating Annotations
+
+```typescript
+import type { AnnotationData } from '@waveform-playlist/core';
+
+const annotations: AnnotationData[] = [
+  {
+    id: '1',
+    start: 0,
+    end: 5.5,
+    lines: ['Introduction'],
+    language: 'en'
+  },
+  {
+    id: '2',
+    start: 5.5,
+    end: 12.3,
+    lines: ['First verse', 'Vocals enter'],
+    language: 'en'
+  },
+  {
+    id: '3',
+    start: 12.3,
+    end: 20.0,
+    lines: ['Chorus'],
+    language: 'en'
+  }
+];
+```
+
+### Using with AnnotationList Component
+
+```typescript
+import { AnnotationList } from '@waveform-playlist/annotations';
+import type { AnnotationData, AnnotationAction } from '@waveform-playlist/core';
+
+const annotations: AnnotationData[] = [/* ... */];
+
+const deleteAction: AnnotationAction = {
+  title: 'Delete',
+  action: (annotation, index, annotations) => {
+    annotations.splice(index, 1);
+  }
+};
+
+<AnnotationList
+  annotations={annotations}
+  currentTime={currentTime}
+  onAnnotationSelect={(annotation) => {
+    console.log('Selected:', annotation);
+  }}
+  actions={[deleteAction]}
+  editable={true}
+  linkEndpoints={false}
+  continuousPlay={false}
+/>
+```
+
+---
+
+## Related Documentation
+
+- [Annotations Guide](/guides/annotations) - Complete guide to working with annotations
+- [AnnotationList Component](/api/components/annotation-list) - Annotation list component reference
+- [useAnnotations Hook](/api/hooks/use-annotations) - Annotations state management

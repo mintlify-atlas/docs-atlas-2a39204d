@@ -1,0 +1,316 @@
+---
+title: Multi-Track Editing
+description: Manage multiple tracks and clips with dynamic track creation and manipulation
+---
+
+# Multi-Track Editing
+
+Waveform Playlist supports multi-track editing with multiple clips per track, enabling complex audio arrangements.
+
+## Track Structure
+
+Each track contains an array of clips:
+
+```typescript
+interface ClipTrack {
+  id: string;
+  name: string;
+  clips: AudioClip[];          // Multiple clips per track
+  muted: boolean;
+  soloed: boolean;
+  volume: number;              // 0.0 to 1.0
+  pan: number;                 // -1.0 to 1.0
+  color?: string;
+  effects?: TrackEffectsFunction;
+  renderMode?: 'waveform' | 'spectrogram' | 'both';
+}
+
+interface AudioClip {
+  id: string;
+  audioBuffer?: AudioBuffer;
+  startSample: number;         // Position on timeline
+  durationSamples: number;     // Clip length
+  offsetSamples: number;       // Offset into source audio
+  sampleRate: number;
+  sourceDurationSamples: number;
+  gain: number;
+  name?: string;
+  fadeIn?: Fade;
+  fadeOut?: Fade;
+  waveformData?: WaveformDataObject;
+}
+```
+
+## Creating Tracks Programmatically
+
+Use `createTrack` from `@waveform-playlist/core`:
+
+```typescript
+import { createTrack, createClipFromSeconds } from '@waveform-playlist/core';
+
+const clip1 = createClipFromSeconds({
+  audioBuffer: buffer1,
+  startTime: 0,      // Timeline position
+  duration: 10,      // 10 seconds
+  offset: 0,
+  name: 'Intro',
+});
+
+const clip2 = createClipFromSeconds({
+  audioBuffer: buffer2,
+  startTime: 12,     // Starts at 12 seconds
+  duration: 8,
+  offset: 2,         // Skip first 2 seconds of source
+  name: 'Chorus',
+});
+
+const track = createTrack({
+  name: 'Vocals',
+  clips: [clip1, clip2],
+  volume: 0.8,
+  pan: -0.2,
+  color: '#FF6B6B',
+});
+```
+
+Location: `packages/core/src/track.ts`
+
+## Dynamic Track Management
+
+The `useDynamicTracks` hook enables imperative track addition at runtime:
+
+```typescript
+import { useDynamicTracks } from '@waveform-playlist/browser';
+import { WaveformPlaylistProvider } from '@waveform-playlist/browser';
+
+function DynamicPlaylist() {
+  const { 
+    tracks, 
+    addTracks, 
+    removeTrack, 
+    isLoading, 
+    loadingCount,
+    errors 
+  } = useDynamicTracks();
+
+  const handleFileSelect = (files: File[]) => {
+    // Placeholder tracks appear instantly while audio decodes
+    addTracks(files);
+  };
+
+  return (
+    <div>
+      <input 
+        type="file" 
+        multiple 
+        accept="audio/*" 
+        onChange={(e) => handleFileSelect(Array.from(e.target.files || []))}
+      />
+      
+      {isLoading && <div>Loading {loadingCount} tracks...</div>}
+      
+      {errors.map((err, i) => (
+        <div key={i}>Failed to load {err.name}: {err.error.message}</div>
+      ))}
+      
+      <WaveformPlaylistProvider tracks={tracks}>
+        {/* Playlist UI */}
+      </WaveformPlaylistProvider>
+    </div>
+  );
+}
+```
+
+Location: `packages/browser/src/hooks/useDynamicTracks.ts`
+
+## Track Sources
+
+`addTracks` accepts multiple source types:
+
+```typescript
+type TrackSource = 
+  | File                              // From file input
+  | Blob                              // From API response
+  | string                            // URL to fetch
+  | { src: string; name?: string };   // URL with custom name
+
+// Examples:
+addTracks([file1, file2]);           // File objects
+addTracks(['audio/track1.mp3']);     // URLs
+addTracks([blob]);                   // Blobs
+addTracks([{ src: 'song.mp3', name: 'My Song' }]); // URLs with names
+```
+
+Location: `packages/browser/src/hooks/useDynamicTracks.ts:14-15`
+
+## Placeholder-then-Replace Pattern
+
+Placeholder tracks appear instantly while audio decodes:
+
+```typescript
+const { tracks, isLoading } = useDynamicTracks();
+
+// Before decode:
+// { id: 'track-1', name: 'vocals.mp3 (loading...)', clips: [] }
+
+// After decode:
+// { id: 'track-1', name: 'vocals.mp3', clips: [clip] }
+```
+
+Location: `packages/browser/src/hooks/useDynamicTracks.ts:1-8`
+
+## Removing Tracks
+
+```typescript
+const { tracks, removeTrack } = useDynamicTracks();
+
+// Removes track and aborts in-flight fetch/decode
+removeTrack('track-id');
+```
+
+Location: `packages/browser/src/hooks/useDynamicTracks.ts:176-187`
+
+## Track State Management
+
+Control track properties dynamically:
+
+```typescript
+import { usePlaylistControls } from '@waveform-playlist/browser';
+
+function TrackControls({ trackIndex }: { trackIndex: number }) {
+  const { 
+    setTrackMute, 
+    setTrackSolo, 
+    setTrackVolume, 
+    setTrackPan 
+  } = usePlaylistControls();
+
+  return (
+    <div>
+      <button onClick={() => setTrackMute(trackIndex, true)}>
+        Mute
+      </button>
+      <button onClick={() => setTrackSolo(trackIndex, true)}>
+        Solo
+      </button>
+      <input 
+        type="range" 
+        min="0" 
+        max="1" 
+        step="0.01"
+        onChange={(e) => setTrackVolume(trackIndex, parseFloat(e.target.value))}
+      />
+      <input 
+        type="range" 
+        min="-1" 
+        max="1" 
+        step="0.01"
+        onChange={(e) => setTrackPan(trackIndex, parseFloat(e.target.value))}
+      />
+    </div>
+  );
+}
+```
+
+Location: `packages/browser/src/WaveformPlaylistContext.tsx:108-111`
+
+## Multiple Clips Per Track
+
+Create complex arrangements with multiple clips:
+
+```typescript
+import { createTrack, createClipFromSeconds } from '@waveform-playlist/core';
+
+const track = createTrack({
+  name: 'Vocals',
+  clips: [
+    createClipFromSeconds({
+      audioBuffer: verse1Buffer,
+      startTime: 0,
+      duration: 30,
+      name: 'Verse 1',
+    }),
+    createClipFromSeconds({
+      audioBuffer: chorusBuffer,
+      startTime: 30,
+      duration: 20,
+      name: 'Chorus',
+    }),
+    createClipFromSeconds({
+      audioBuffer: verse2Buffer,
+      startTime: 50,
+      duration: 30,
+      name: 'Verse 2',
+    }),
+  ],
+});
+```
+
+## Combining Static and Dynamic Tracks
+
+Mix declarative and imperative loading:
+
+```typescript
+function MixedPlaylist() {
+  // Static tracks from config
+  const { tracks: staticTracks } = useAudioTracks([
+    { src: 'backing-track.mp3', name: 'Backing Track' },
+  ]);
+
+  // Dynamic tracks from user uploads
+  const { tracks: dynamicTracks, addTracks } = useDynamicTracks();
+
+  // Combine both
+  const allTracks = [...staticTracks, ...dynamicTracks];
+
+  return (
+    <div>
+      <input 
+        type="file" 
+        onChange={(e) => addTracks(Array.from(e.target.files || []))}
+      />
+      <WaveformPlaylistProvider tracks={allTracks}>
+        {/* Playlist UI */}
+      </WaveformPlaylistProvider>
+    </div>
+  );
+}
+```
+
+## Track Selection
+
+Select a track for editing operations:
+
+```typescript
+const { selectedTrackId } = usePlaylistState();
+const { setSelectedTrackId } = usePlaylistControls();
+
+// Select track by ID
+setSelectedTrackId('track-id');
+
+// Clear selection
+setSelectedTrackId(null);
+```
+
+Location: `packages/browser/src/WaveformPlaylistContext.tsx:93`
+
+## Error Handling
+
+```typescript
+const { errors } = useDynamicTracks();
+
+// Display failed loads
+{errors.map((err, i) => (
+  <div key={i} className="error">
+    Failed to load {err.name}: {err.error.message}
+  </div>
+))}
+```
+
+Location: `packages/browser/src/hooks/useDynamicTracks.ts:17-23`
+
+## Next Steps
+
+- [Drag and Drop](/guides/drag-and-drop) - Move and trim clips
+- [Audio Effects](/guides/audio-effects) - Apply per-track effects
+- [Recording](/guides/recording) - Record directly to tracks

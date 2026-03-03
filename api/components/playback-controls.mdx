@@ -1,0 +1,349 @@
+---
+title: Playback Controls
+description: Button components for controlling audio playback, transport, and looping
+---
+
+## Overview
+
+Playback control components provide pre-built buttons that integrate with `WaveformPlaylistProvider` context. All components are fully controlled via context and automatically reflect the current playback state.
+
+**Package:** `@waveform-playlist/browser`
+
+**Requires:** `WaveformPlaylistProvider` context
+
+---
+
+## PlayButton
+
+Starts audio playback from the current cursor position or plays the selection region.
+
+### Props
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+### Behavior
+
+- **With selection (no loop):** Plays the selection region only, then stops
+- **Without selection or with loop enabled:** Plays from current cursor position (Transport loop handles boundaries when enabled)
+- **Disabled when:** Already playing
+
+### Usage
+
+```tsx
+import { WaveformPlaylistProvider, PlayButton } from '@waveform-playlist/browser';
+
+function Player() {
+  return (
+    <WaveformPlaylistProvider tracks={tracks}>
+      <PlayButton className="my-play-btn" />
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+---
+
+## PauseButton
+
+Pauses audio playback at the current position.
+
+### Props
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+### Behavior
+
+- Pauses playback and maintains cursor position
+- **Disabled when:** Not playing
+
+### Usage
+
+```tsx
+import { PauseButton } from '@waveform-playlist/browser';
+
+<PauseButton />
+```
+
+---
+
+## StopButton
+
+Stops audio playback.
+
+### Props
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+### Behavior
+
+- Stops playback completely
+- **Disabled when:** Not playing
+
+### Usage
+
+```tsx
+import { StopButton } from '@waveform-playlist/browser';
+
+<StopButton />
+```
+
+---
+
+## RewindButton
+
+Rewinds playback to the beginning (0:00).
+
+### Props
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+### Behavior
+
+- Sets cursor to 0:00
+- If currently playing, restarts playback from 0:00
+- Always enabled
+
+### Usage
+
+```tsx
+import { RewindButton } from '@waveform-playlist/browser';
+
+<RewindButton />
+```
+
+---
+
+## FastForwardButton
+
+Fast forwards to the end of the audio.
+
+### Props
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+### Behavior
+
+- Sets cursor to end of duration
+- If currently playing, restarts playback from end position
+- Always enabled
+
+### Usage
+
+```tsx
+import { FastForwardButton } from '@waveform-playlist/browser';
+
+<FastForwardButton />
+```
+
+---
+
+## SkipBackwardButton
+
+Skips backward by a specified number of seconds.
+
+### Props
+
+<ParamField path="skipAmount" type="number" default="5">
+  Number of seconds to skip backward.
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+### Behavior
+
+- Moves cursor backward by `skipAmount` seconds (minimum 0:00)
+- If currently playing, restarts playback from new position
+- Always enabled
+
+### Usage
+
+```tsx
+import { SkipBackwardButton } from '@waveform-playlist/browser';
+
+{/* Skip back 5 seconds (default) */}
+<SkipBackwardButton />
+
+{/* Skip back 10 seconds */}
+<SkipBackwardButton skipAmount={10} />
+```
+
+---
+
+## SkipForwardButton
+
+Skips forward by a specified number of seconds.
+
+### Props
+
+<ParamField path="skipAmount" type="number" default="5">
+  Number of seconds to skip forward.
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+### Behavior
+
+- Moves cursor forward by `skipAmount` seconds (maximum: duration)
+- If currently playing, restarts playback from new position
+- Always enabled
+
+### Usage
+
+```tsx
+import { SkipForwardButton } from '@waveform-playlist/browser';
+
+{/* Skip forward 5 seconds (default) */}
+<SkipForwardButton />
+
+{/* Skip forward 30 seconds */}
+<SkipForwardButton skipAmount={30} />
+```
+
+---
+
+## LoopButton
+
+Toggles loop mode on/off. When loop is enabled, playback repeats within the loop region boundaries.
+
+### Props
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+### Behavior
+
+- Toggles loop enabled state
+- When enabling loop without a valid loop region, creates a default loop region (first 10 seconds or 25% of duration, whichever is smaller)
+- Button text changes to "Loop On" or "Loop Off" based on state
+- Always enabled
+
+### Usage
+
+```tsx
+import { LoopButton } from '@waveform-playlist/browser';
+
+<LoopButton />
+```
+
+---
+
+## SetLoopRegionButton
+
+Sets or clears the loop region based on the current selection.
+
+### Props
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+### Behavior
+
+- If loop region exists: Clears it (button shows "Clear Loop")
+- If valid selection exists: Sets loop region from selection (button shows "Set Loop")
+- **Disabled when:** No valid selection and no existing loop region
+- Button title provides contextual help text
+
+### Usage
+
+```tsx
+import { SetLoopRegionButton } from '@waveform-playlist/browser';
+
+<SetLoopRegionButton />
+```
+
+---
+
+## AudioPosition
+
+Displays the current audio playback position as formatted text.
+
+**Package:** `@waveform-playlist/ui-components`
+
+### Props
+
+<ParamField path="formattedTime" type="string" required>
+  The formatted time string to display (e.g., "00:05", "1:23.456").
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+### Usage
+
+This component is typically used with the `useTimeFormat` hook to format the current time:
+
+```tsx
+import { usePlaybackAnimation } from '@waveform-playlist/browser';
+import { useTimeFormat } from '@waveform-playlist/browser';
+import { AudioPosition } from '@waveform-playlist/ui-components';
+
+function TimeDisplay() {
+  const { currentTimeRef } = usePlaybackAnimation();
+  const { formatTime } = useTimeFormat();
+  const [time, setTime] = useState(0);
+  
+  // Update time display during playback
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTime(currentTimeRef.current ?? 0);
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
+  
+  return <AudioPosition formattedTime={formatTime(time)} />;
+}
+```
+
+---
+
+## Complete Example
+
+```tsx
+import { 
+  WaveformPlaylistProvider, 
+  PlayButton, 
+  PauseButton, 
+  StopButton,
+  RewindButton,
+  FastForwardButton,
+  SkipBackwardButton,
+  SkipForwardButton,
+  LoopButton,
+  SetLoopRegionButton
+} from '@waveform-playlist/browser';
+
+function PlaybackControls() {
+  return (
+    <WaveformPlaylistProvider tracks={tracks}>
+      <div className="controls">
+        <RewindButton />
+        <SkipBackwardButton skipAmount={10} />
+        <PlayButton />
+        <PauseButton />
+        <StopButton />
+        <SkipForwardButton skipAmount={10} />
+        <FastForwardButton />
+        <LoopButton />
+        <SetLoopRegionButton />
+      </div>
+    </WaveformPlaylistProvider>
+  );
+}
+```

@@ -1,0 +1,643 @@
+---
+title: 'WaveformPlaylistProvider'
+description: 'Primary context provider for multi-track audio editing with Tone.js-based playback'
+---
+
+## Overview
+
+The `WaveformPlaylistProvider` is the primary provider for multi-track audio editing. It provides full audio playback, editing capabilities, effects processing, and waveform visualization using Tone.js as the audio engine.
+
+**Use this provider for:**
+- Multi-track audio editing
+- Complex audio effects chains
+- Recording and mixing
+- Full playlist manipulation (move, trim, split clips)
+
+**For single-track playback with speed control, use [`MediaElementPlaylistProvider`](/api/providers/media-element-provider) instead.**
+
+## Import
+
+```tsx
+import { WaveformPlaylistProvider } from '@waveform-playlist/browser';
+```
+
+## Props
+
+<ParamField path="tracks" type="ClipTrack[]" required>
+  Array of tracks with clips. Each track contains audio clips positioned on the timeline.
+  
+  See [ClipTrack type documentation](/api/types/tracks) for details.
+</ParamField>
+
+<ParamField path="timescale" type="boolean" default="false">
+  Show timescale ruler above waveforms.
+</ParamField>
+
+<ParamField path="mono" type="boolean" default="false">
+  Render waveforms in mono mode (combine stereo channels).
+</ParamField>
+
+<ParamField path="waveHeight" type="number" default="80">
+  Height in pixels of each waveform track.
+</ParamField>
+
+<ParamField path="samplesPerPixel" type="number" default="1024">
+  Initial zoom level. Lower values = more zoomed in. Must match one of the zoom levels.
+</ParamField>
+
+<ParamField path="zoomLevels" type="number[]" default="[256, 512, 1024, 2048, 4096, 8192]">
+  Array of available zoom levels in samples per pixel. Users can zoom between these levels.
+</ParamField>
+
+<ParamField path="automaticScroll" type="boolean" default="false">
+  Automatically scroll to keep the playhead centered during playback.
+</ParamField>
+
+<ParamField path="theme" type="Partial<WaveformPlaylistTheme>">
+  Custom theme to override default colors and styling.
+  
+  See [Theming documentation](/concepts/theming) for available options.
+</ParamField>
+
+<ParamField path="controls" type="{ show: boolean; width: number }" default="{ show: false, width: 0 }">
+  Configuration for track control panels (mute, solo, volume, pan).
+  
+  ```tsx
+  controls={{ show: true, width: 150 }}
+  ```
+</ParamField>
+
+<ParamField path="annotationList" type="object">
+  Configuration for annotations display and editing.
+  
+  <Expandable title="Annotation configuration properties">
+    <ResponseField name="annotations" type="AnnotationData[]">
+      Array of annotation segments. Must be pre-parsed with numeric `start` and `end` values.
+      
+      Use `parseAeneas()` from `@waveform-playlist/annotations` to parse raw annotation data.
+    </ResponseField>
+    
+    <ResponseField name="editable" type="boolean" default="false">
+      Allow dragging annotation boundaries to edit timing.
+    </ResponseField>
+    
+    <ResponseField name="isContinuousPlay" type="boolean" default="false">
+      When enabled, playback continues across annotation boundaries. When disabled, playback stops at the end of the current annotation.
+    </ResponseField>
+    
+    <ResponseField name="linkEndpoints" type="boolean" default="false">
+      Link adjacent annotation endpoints. When editing one annotation's end, the next annotation's start moves to match.
+    </ResponseField>
+    
+    <ResponseField name="controls" type="AnnotationAction[]">
+      Array of available annotation controls (e.g., delete, merge, split).
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="effects" type="EffectsFunction">
+  Master effects chain function. Processes all tracks through the specified effects.
+  
+  See [Audio Effects guide](/guides/audio-effects) for usage.
+  
+  ```tsx
+  effects={(input, output) => {
+    const reverb = new Reverb();
+    input.connect(reverb).connect(output);
+  }}
+  ```
+</ParamField>
+
+<ParamField path="onReady" type="() => void">
+  Callback fired when all tracks have loaded and the playlist is ready for playback.
+</ParamField>
+
+<ParamField path="onAnnotationsChange" type="(annotations: AnnotationData[]) => void">
+  Callback fired when annotations are edited (drag, split, merge, delete).
+  
+  **Required** if `annotationList.editable` is `true`. Without this callback, edits will not persist.
+  
+  ```tsx
+  onAnnotationsChange={(updated) => setAnnotations(updated)}
+  ```
+</ParamField>
+
+<ParamField path="onAnnotationUpdate" type="(annotations: AnnotationData[]) => void" deprecated>
+  Deprecated. Use `onAnnotationsChange` instead.
+</ParamField>
+
+<ParamField path="barWidth" type="number" default="1">
+  Width in pixels of waveform bars.
+</ParamField>
+
+<ParamField path="barGap" type="number" default="0">
+  Spacing in pixels between waveform bars.
+</ParamField>
+
+<ParamField path="progressBarWidth" type="number" default="barWidth + barGap">
+  Width in pixels of progress bars during playback. Defaults to fill gaps between bars.
+</ParamField>
+
+<ParamField path="onTracksChange" type="(tracks: ClipTrack[]) => void">
+  Callback when engine operations (move, trim, split) modify tracks.
+  
+  **Important:** You must pass the received `tracks` reference back as the `tracks` prop (i.e., `setState(tracks)`). The provider uses reference identity to detect engine-originated updates and skip expensive rebuilds.
+  
+  ```tsx
+  const [tracks, setTracks] = useState(initialTracks);
+  
+  <WaveformPlaylistProvider
+    tracks={tracks}
+    onTracksChange={setTracks}  // Pass reference directly
+  >
+  ```
+</ParamField>
+
+## Context Hooks
+
+The provider exposes four separate contexts for optimal performance. Components only re-render when their specific context data changes.
+
+### usePlaybackAnimation
+
+Access playback timing and animation state. This context updates on discrete events (play/pause/stop/seek), not during the animation loop itself.
+
+```tsx
+import { usePlaybackAnimation } from '@waveform-playlist/browser';
+
+function MyComponent() {
+  const { 
+    isPlaying,           // boolean
+    currentTime,         // number (seconds)
+    currentTimeRef,      // RefObject<number>
+    getPlaybackTime      // () => number
+  } = usePlaybackAnimation();
+}
+```
+
+<Expandable title="PlaybackAnimation values">
+  <ResponseField name="isPlaying" type="boolean">
+    Whether audio is currently playing.
+  </ResponseField>
+  
+  <ResponseField name="currentTime" type="number">
+    Current playback position in seconds. Updated on discrete events (play/pause/seek).
+  </ResponseField>
+  
+  <ResponseField name="currentTimeRef" type="RefObject<number>">
+    Ref to current time for animation loops. Access via `currentTimeRef.current` in `requestAnimationFrame` callbacks.
+  </ResponseField>
+  
+  <ResponseField name="playbackStartTimeRef" type="RefObject<number>">
+    Audio context time when playback started. Used for calculating elapsed time.
+  </ResponseField>
+  
+  <ResponseField name="audioStartPositionRef" type="RefObject<number>">
+    Audio position when playback started. Used with elapsed time to calculate current position.
+  </ResponseField>
+  
+  <ResponseField name="getPlaybackTime" type="() => number">
+    Returns current playback time from the engine. Auto-wraps at loop boundaries.
+    
+    Use this in animation loops for accurate timing instead of reading state.
+  </ResponseField>
+</Expandable>
+
+### usePlaylistState
+
+Access playlist state (selection, loop, annotations).
+
+```tsx
+import { usePlaylistState } from '@waveform-playlist/browser';
+
+function MyComponent() {
+  const {
+    continuousPlay,
+    linkEndpoints,
+    annotationsEditable,
+    isAutomaticScroll,
+    isLoopEnabled,
+    annotations,
+    activeAnnotationId,
+    selectionStart,
+    selectionEnd,
+    selectedTrackId,
+    loopStart,
+    loopEnd
+  } = usePlaylistState();
+}
+```
+
+<Expandable title="PlaylistState values">
+  <ResponseField name="continuousPlay" type="boolean">
+    Whether continuous play is enabled for annotations.
+  </ResponseField>
+  
+  <ResponseField name="linkEndpoints" type="boolean">
+    Whether adjacent annotation endpoints are linked.
+  </ResponseField>
+  
+  <ResponseField name="annotationsEditable" type="boolean">
+    Whether annotations can be edited by dragging.
+  </ResponseField>
+  
+  <ResponseField name="isAutomaticScroll" type="boolean">
+    Whether automatic scroll is enabled to keep playhead centered.
+  </ResponseField>
+  
+  <ResponseField name="isLoopEnabled" type="boolean">
+    Whether looping is enabled.
+  </ResponseField>
+  
+  <ResponseField name="annotations" type="AnnotationData[]">
+    Current annotations array.
+  </ResponseField>
+  
+  <ResponseField name="activeAnnotationId" type="string | null">
+    ID of the currently active annotation during playback.
+  </ResponseField>
+  
+  <ResponseField name="selectionStart" type="number">
+    Start time of current selection in seconds.
+  </ResponseField>
+  
+  <ResponseField name="selectionEnd" type="number">
+    End time of current selection in seconds.
+  </ResponseField>
+  
+  <ResponseField name="selectedTrackId" type="string | null">
+    ID of currently selected track for editing operations.
+  </ResponseField>
+  
+  <ResponseField name="loopStart" type="number">
+    Start time of loop region in seconds.
+  </ResponseField>
+  
+  <ResponseField name="loopEnd" type="number">
+    End time of loop region in seconds.
+  </ResponseField>
+</Expandable>
+
+### usePlaylistControls
+
+Access control functions for playback, tracks, selection, zoom, and more.
+
+```tsx
+import { usePlaylistControls } from '@waveform-playlist/browser';
+
+function MyComponent() {
+  const { play, pause, stop, seekTo, setSelection } = usePlaylistControls();
+  
+  const handlePlay = () => {
+    play(); // Play from current position
+    // or
+    play(5.0); // Play from 5 seconds
+    // or
+    play(5.0, 10.0); // Play 10 seconds starting at 5s
+  };
+}
+```
+
+<Expandable title="Playback controls">
+  <ResponseField name="play" type="(startTime?: number, playDuration?: number) => Promise<void>">
+    Start playback. Optionally specify start time and duration.
+  </ResponseField>
+  
+  <ResponseField name="pause" type="() => void">
+    Pause playback at current position.
+  </ResponseField>
+  
+  <ResponseField name="stop" type="() => void">
+    Stop playback and return cursor to start position.
+  </ResponseField>
+  
+  <ResponseField name="seekTo" type="(time: number) => void">
+    Seek to a specific time in seconds.
+  </ResponseField>
+  
+  <ResponseField name="setCurrentTime" type="(time: number) => void">
+    Set current time without seeking (updates UI only).
+  </ResponseField>
+</Expandable>
+
+<Expandable title="Track controls">
+  <ResponseField name="setTrackMute" type="(trackIndex: number, muted: boolean) => void">
+    Mute or unmute a track.
+  </ResponseField>
+  
+  <ResponseField name="setTrackSolo" type="(trackIndex: number, soloed: boolean) => void">
+    Solo or unsolo a track.
+  </ResponseField>
+  
+  <ResponseField name="setTrackVolume" type="(trackIndex: number, volume: number) => void">
+    Set track volume (0.0 to 1.0).
+  </ResponseField>
+  
+  <ResponseField name="setTrackPan" type="(trackIndex: number, pan: number) => void">
+    Set track pan (-1.0 to 1.0).
+  </ResponseField>
+</Expandable>
+
+<Expandable title="Selection & editing controls">
+  <ResponseField name="setSelection" type="(start: number, end: number) => void">
+    Set time selection range in seconds.
+  </ResponseField>
+  
+  <ResponseField name="setSelectedTrackId" type="(trackId: string | null) => void">
+    Select a track for editing operations.
+  </ResponseField>
+</Expandable>
+
+<Expandable title="Zoom controls">
+  <ResponseField name="zoomIn" type="() => void">
+    Zoom in to the next zoom level.
+  </ResponseField>
+  
+  <ResponseField name="zoomOut" type="() => void">
+    Zoom out to the previous zoom level.
+  </ResponseField>
+</Expandable>
+
+<Expandable title="Time format controls">
+  <ResponseField name="setTimeFormat" type="(format: TimeFormat) => void">
+    Set time display format ('seconds', 'hh:mm:ss', etc.).
+  </ResponseField>
+  
+  <ResponseField name="formatTime" type="(seconds: number) => string">
+    Format a time value according to current time format.
+  </ResponseField>
+</Expandable>
+
+<Expandable title="Volume & scroll controls">
+  <ResponseField name="setMasterVolume" type="(volume: number) => void">
+    Set master volume (0.0 to 1.0).
+  </ResponseField>
+  
+  <ResponseField name="setAutomaticScroll" type="(enabled: boolean) => void">
+    Enable or disable automatic scrolling.
+  </ResponseField>
+  
+  <ResponseField name="setScrollContainer" type="(element: HTMLDivElement | null) => void">
+    Set the scroll container element for automatic scrolling.
+  </ResponseField>
+  
+  <ResponseField name="scrollContainerRef" type="RefObject<HTMLDivElement | null>">
+    Ref to the scroll container element.
+  </ResponseField>
+</Expandable>
+
+<Expandable title="Annotation controls">
+  <ResponseField name="setContinuousPlay" type="(enabled: boolean) => void">
+    Enable or disable continuous play for annotations.
+  </ResponseField>
+  
+  <ResponseField name="setLinkEndpoints" type="(enabled: boolean) => void">
+    Enable or disable linked annotation endpoints.
+  </ResponseField>
+  
+  <ResponseField name="setAnnotationsEditable" type="(enabled: boolean) => void">
+    Enable or disable annotation editing.
+  </ResponseField>
+  
+  <ResponseField name="setAnnotations" type="Dispatch<SetStateAction<AnnotationData[]>>">
+    Update annotations. Calls `onAnnotationsChange` callback.
+  </ResponseField>
+  
+  <ResponseField name="setActiveAnnotationId" type="(id: string | null) => void">
+    Set the active annotation ID.
+  </ResponseField>
+</Expandable>
+
+<Expandable title="Loop controls">
+  <ResponseField name="setLoopEnabled" type="(enabled: boolean) => void">
+    Enable or disable looping.
+  </ResponseField>
+  
+  <ResponseField name="setLoopRegion" type="(start: number, end: number) => void">
+    Set loop region start and end times in seconds.
+  </ResponseField>
+  
+  <ResponseField name="setLoopRegionFromSelection" type="() => void">
+    Set loop region to match current selection.
+  </ResponseField>
+  
+  <ResponseField name="clearLoopRegion" type="() => void">
+    Clear loop region (sets both to 0).
+  </ResponseField>
+</Expandable>
+
+### usePlaylistData
+
+Access playlist data (duration, audio buffers, waveform peaks, track states).
+
+```tsx
+import { usePlaylistData } from '@waveform-playlist/browser';
+
+function MyComponent() {
+  const {
+    duration,
+    tracks,
+    trackStates,
+    audioBuffers,
+    peaksDataArray,
+    sampleRate,
+    isReady
+  } = usePlaylistData();
+}
+```
+
+<Expandable title="PlaylistData values">
+  <ResponseField name="duration" type="number">
+    Total timeline duration in seconds.
+  </ResponseField>
+  
+  <ResponseField name="audioBuffers" type="AudioBuffer[]">
+    Array of decoded audio buffers for all tracks.
+  </ResponseField>
+  
+  <ResponseField name="peaksDataArray" type="TrackClipPeaks[]">
+    Array of waveform peak data for rendering. Each track contains an array of clip peaks.
+  </ResponseField>
+  
+  <ResponseField name="trackStates" type="TrackState[]">
+    Array of track UI states (muted, soloed, volume, pan).
+  </ResponseField>
+  
+  <ResponseField name="tracks" type="ClipTrack[]">
+    Original tracks array with IDs and clip data.
+  </ResponseField>
+  
+  <ResponseField name="sampleRate" type="number">
+    Audio sample rate (typically 44100 or 48000 Hz).
+  </ResponseField>
+  
+  <ResponseField name="waveHeight" type="number">
+    Height in pixels of each waveform track.
+  </ResponseField>
+  
+  <ResponseField name="timeScaleHeight" type="number">
+    Height in pixels of timescale ruler (0 if disabled).
+  </ResponseField>
+  
+  <ResponseField name="minimumPlaylistHeight" type="number">
+    Minimum height in pixels for the entire playlist.
+  </ResponseField>
+  
+  <ResponseField name="controls" type="{ show: boolean; width: number }">
+    Track controls configuration.
+  </ResponseField>
+  
+  <ResponseField name="playoutRef" type="RefObject<PlaylistEngine | null>">
+    Ref to the underlying playlist engine instance.
+  </ResponseField>
+  
+  <ResponseField name="samplesPerPixel" type="number">
+    Current zoom level in samples per pixel.
+  </ResponseField>
+  
+  <ResponseField name="timeFormat" type="TimeFormat">
+    Current time display format.
+  </ResponseField>
+  
+  <ResponseField name="masterVolume" type="number">
+    Master volume (0.0 to 1.0).
+  </ResponseField>
+  
+  <ResponseField name="canZoomIn" type="boolean">
+    Whether zooming in further is possible.
+  </ResponseField>
+  
+  <ResponseField name="canZoomOut" type="boolean">
+    Whether zooming out further is possible.
+  </ResponseField>
+  
+  <ResponseField name="barWidth" type="number">
+    Width in pixels of waveform bars.
+  </ResponseField>
+  
+  <ResponseField name="barGap" type="number">
+    Gap in pixels between waveform bars.
+  </ResponseField>
+  
+  <ResponseField name="progressBarWidth" type="number">
+    Width in pixels of progress bars during playback.
+  </ResponseField>
+  
+  <ResponseField name="isReady" type="boolean">
+    Whether the playlist has finished loading all tracks.
+  </ResponseField>
+  
+  <ResponseField name="mono" type="boolean">
+    Whether waveforms are rendered in mono mode.
+  </ResponseField>
+  
+  <ResponseField name="isDraggingRef" type="MutableRefObject<boolean>">
+    Ref tracking whether a clip boundary trim drag is in progress.
+  </ResponseField>
+</Expandable>
+
+## Complete Example
+
+```tsx
+import { useState } from 'react';
+import { 
+  WaveformPlaylistProvider,
+  usePlaylistControls,
+  usePlaylistState,
+  usePlaylistData
+} from '@waveform-playlist/browser';
+import { parseAeneas } from '@waveform-playlist/annotations';
+
+// Load your audio and annotations
+const initialTracks = [
+  {
+    id: 'track-1',
+    name: 'Vocals',
+    clips: [
+      {
+        id: 'clip-1',
+        audioBuffer: vocalsBuffer,  // AudioBuffer from fetch + decodeAudioData
+        startSample: 0,
+        offsetSamples: 0,
+        durationSamples: vocalsBuffer.length,
+        sampleRate: vocalsBuffer.sampleRate,
+      }
+    ],
+    volume: 1.0,
+    muted: false,
+    soloed: false,
+    pan: 0,
+  },
+  {
+    id: 'track-2',
+    name: 'Instrumental',
+    clips: [
+      {
+        id: 'clip-2',
+        audioBuffer: instrumentalBuffer,
+        startSample: 0,
+        offsetSamples: 0,
+        durationSamples: instrumentalBuffer.length,
+        sampleRate: instrumentalBuffer.sampleRate,
+      }
+    ],
+    volume: 0.8,
+    muted: false,
+    soloed: false,
+    pan: 0,
+  }
+];
+
+function PlaybackControls() {
+  const { play, pause, stop, seekTo } = usePlaylistControls();
+  const { isPlaying, currentTime } = usePlaybackAnimation();
+  
+  return (
+    <div>
+      <button onClick={() => play()}>
+        {isPlaying ? 'Pause' : 'Play'}
+      </button>
+      <button onClick={stop}>Stop</button>
+      <div>Time: {currentTime.toFixed(2)}s</div>
+    </div>
+  );
+}
+
+function App() {
+  const [tracks, setTracks] = useState(initialTracks);
+  const [annotations, setAnnotations] = useState([
+    parseAeneas({ begin: "0.000", end: "2.500", id: "1", lines: ["First segment"] }),
+    parseAeneas({ begin: "2.500", end: "5.000", id: "2", lines: ["Second segment"] })
+  ]);
+  
+  return (
+    <WaveformPlaylistProvider
+      tracks={tracks}
+      onTracksChange={setTracks}
+      waveHeight={100}
+      samplesPerPixel={1024}
+      zoomLevels={[256, 512, 1024, 2048, 4096]}
+      automaticScroll
+      timescale
+      controls={{ show: true, width: 150 }}
+      annotationList={{
+        annotations,
+        editable: true,
+        isContinuousPlay: false,
+        linkEndpoints: true
+      }}
+      onAnnotationsChange={setAnnotations}
+      onReady={() => console.log('Playlist ready!')}
+    >
+      <PlaybackControls />
+      {/* Your waveform visualization components */}
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+## Related
+
+- [MediaElementPlaylistProvider](/api/providers/media-element-provider) - Simplified provider for single-track playback
+- [AnnotationProvider](/api/providers/annotation-provider) - Annotation UI components
+- [ClipTrack type](/api/types/tracks) - Track and clip data structures
+- [Audio Effects guide](/guides/audio-effects) - Using effects with the provider

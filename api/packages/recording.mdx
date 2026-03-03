@@ -1,0 +1,449 @@
+---
+title: '@waveform-playlist/recording'
+description: 'Audio recording support using AudioWorklet'
+---
+
+# @waveform-playlist/recording
+
+The recording package provides real-time audio recording capabilities using modern Web Audio AudioWorklet technology. It includes microphone access, live waveform visualization, VU metering, and seamless integration with the playlist.
+
+## Installation
+
+```bash
+npm install @waveform-playlist/recording react styled-components tone
+```
+
+### Peer Dependencies
+
+<ParamField path="react" type="string" required>
+  React 18.0.0 or later
+</ParamField>
+
+<ParamField path="styled-components" type="string" required>
+  Styled Components 6.0.0 or later
+</ParamField>
+
+<ParamField path="tone" type="string" required>
+  Tone.js 15.0.0 or later (for shared AudioContext)
+</ParamField>
+
+## Main Exports
+
+### Hooks
+
+<ParamField path="useRecording(options)" type="hook">
+  Core recording hook with start, stop, pause, and real-time audio data streaming via AudioWorklet
+</ParamField>
+
+<ParamField path="useMicrophoneAccess(constraints)" type="hook">
+  Request microphone access and enumerate audio input devices
+</ParamField>
+
+<ParamField path="useMicrophoneLevel(options)" type="hook">
+  Real-time microphone level monitoring with dB to 0-1 normalization
+</ParamField>
+
+<ParamField path="useIntegratedRecording(options)" type="hook">
+  High-level hook that combines recording with automatic playlist track addition
+</ParamField>
+
+### Components
+
+<ParamField path="RecordButton" type="component">
+  Record/stop button with recording state styling
+</ParamField>
+
+<ParamField path="MicrophoneSelector" type="component">
+  Dropdown selector for available microphone devices
+</ParamField>
+
+<ParamField path="RecordingIndicator" type="component">
+  Animated recording indicator (pulsing red dot)
+</ParamField>
+
+<ParamField path="VUMeter" type="component">
+  Real-time VU meter display with level bars
+</ParamField>
+
+### Utilities
+
+<ParamField path="generatePeaks(audioBuffer, samplesPerPixel)" type="function">
+  Generate waveform peaks from AudioBuffer for visualization
+</ParamField>
+
+<ParamField path="createAudioBuffer(audioData, sampleRate, context)" type="function">
+  Create AudioBuffer from Float32Array audio data
+</ParamField>
+
+<ParamField path="concatenateAudioData(chunks)" type="function">
+  Concatenate multiple Float32Array chunks into a single array
+</ParamField>
+
+### Types
+
+<ParamField path="RecordingState" type="type">
+  Union type: `'inactive' | 'recording' | 'paused'`
+</ParamField>
+
+<ParamField path="RecordingData" type="interface">
+  Recorded audio data with audioBuffer, duration, and sampleRate
+</ParamField>
+
+<ParamField path="MicrophoneDevice" type="interface">
+  Microphone device info with deviceId and label
+</ParamField>
+
+<ParamField path="RecordingOptions" type="interface">
+  Options for useRecording (deviceId, sampleRate, onDataAvailable, etc.)
+</ParamField>
+
+## Usage Examples
+
+### Basic Recording
+
+```tsx
+import { useRecording, useMicrophoneAccess } from '@waveform-playlist/recording';
+import { useState } from 'react';
+
+function BasicRecorder() {
+  const { devices, requestAccess } = useMicrophoneAccess();
+  const { state, start, stop, recordingData } = useRecording();
+  const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
+
+  const handleRecord = async () => {
+    await requestAccess();
+    start();
+  };
+
+  const handleStop = () => {
+    stop();
+  };
+
+  // When recording stops, get the audio
+  useEffect(() => {
+    if (state === 'inactive' && recordingData) {
+      setAudioBuffer(recordingData.audioBuffer);
+    }
+  }, [state, recordingData]);
+
+  return (
+    <div>
+      <button onClick={handleRecord} disabled={state === 'recording'}>
+        Record
+      </button>
+      <button onClick={handleStop} disabled={state !== 'recording'}>
+        Stop
+      </button>
+      {state === 'recording' && <p>Recording...</p>}
+      {audioBuffer && <p>Recorded {audioBuffer.duration.toFixed(2)}s</p>}
+    </div>
+  );
+}
+```
+
+### Integrated Playlist Recording
+
+```tsx
+import {
+  WaveformPlaylistProvider,
+  PlaylistVisualization,
+} from '@waveform-playlist/browser';
+import {
+  useIntegratedRecording,
+  RecordButton,
+  RecordingIndicator,
+  VUMeter,
+} from '@waveform-playlist/recording';
+
+function PlaylistRecorder() {
+  const [tracks, setTracks] = useState([]);
+  
+  const {
+    isRecording,
+    startRecording,
+    stopRecording,
+    microphoneLevel,
+  } = useIntegratedRecording({
+    onTracksChange: setTracks,
+    trackNamePrefix: 'Recording',
+  });
+
+  return (
+    <WaveformPlaylistProvider tracks={tracks} onTracksChange={setTracks}>
+      <div>
+        <RecordButton
+          isRecording={isRecording}
+          onStart={startRecording}
+          onStop={stopRecording}
+        />
+        <RecordingIndicator isRecording={isRecording} />
+        <VUMeter level={microphoneLevel} />
+      </div>
+      <PlaylistVisualization />
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+### Real-time Level Monitoring
+
+```tsx
+import {
+  useMicrophoneAccess,
+  useMicrophoneLevel,
+  VUMeter,
+} from '@waveform-playlist/recording';
+
+function LevelMonitor() {
+  const { requestAccess, stream } = useMicrophoneAccess();
+  const { level, start, stop } = useMicrophoneLevel({
+    stream,
+    smoothing: 0.8,
+  });
+
+  const handleStart = async () => {
+    await requestAccess();
+    start();
+  };
+
+  return (
+    <div>
+      <button onClick={handleStart}>Start Monitoring</button>
+      <button onClick={stop}>Stop</button>
+      <VUMeter level={level} height={200} />
+      <div>Level: {(level * 100).toFixed(0)}%</div>
+    </div>
+  );
+}
+```
+
+### Device Selection
+
+```tsx
+import {
+  useMicrophoneAccess,
+  MicrophoneSelector,
+  useRecording,
+} from '@waveform-playlist/recording';
+
+function RecorderWithDeviceSelection() {
+  const {
+    devices,
+    selectedDevice,
+    selectDevice,
+    requestAccess,
+  } = useMicrophoneAccess();
+  
+  const { state, start, stop } = useRecording({
+    deviceId: selectedDevice?.deviceId,
+  });
+
+  const handleRecord = async () => {
+    await requestAccess();
+    start();
+  };
+
+  return (
+    <div>
+      <MicrophoneSelector
+        devices={devices}
+        selectedDeviceId={selectedDevice?.deviceId}
+        onSelectDevice={(deviceId) => {
+          const device = devices.find(d => d.deviceId === deviceId);
+          if (device) selectDevice(device);
+        }}
+      />
+      <button onClick={handleRecord}>Record</button>
+      <button onClick={stop}>Stop</button>
+    </div>
+  );
+}
+```
+
+### Custom Audio Constraints
+
+```tsx
+import { useMicrophoneAccess } from '@waveform-playlist/recording';
+
+function HighQualityRecorder() {
+  const { requestAccess } = useMicrophoneAccess({
+    echoCancellation: false,     // Disable for music recording
+    noiseSuppression: false,      // Disable for music recording
+    autoGainControl: false,       // Disable for manual control
+    channelCount: 2,              // Stereo recording
+    sampleRate: 48000,            // High quality sample rate
+    latency: 0,                   // Minimize latency
+  });
+
+  return (
+    <button onClick={requestAccess}>
+      Request High-Quality Mic Access
+    </button>
+  );
+}
+```
+
+### Real-time Waveform Visualization
+
+```tsx
+import { useRecording } from '@waveform-playlist/recording';
+import { useEffect, useRef } from 'react';
+
+function LiveWaveform() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const audioDataRef = useRef<Float32Array[]>([]);
+  
+  const { state, start, stop } = useRecording({
+    onDataAvailable: (audioData) => {
+      audioDataRef.current.push(audioData);
+      drawWaveform();
+    },
+  });
+
+  const drawWaveform = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Draw accumulated audio data
+    const allData = concatenateAudioData(audioDataRef.current);
+    // ... drawing logic
+  };
+
+  return (
+    <div>
+      <button onClick={start}>Record</button>
+      <button onClick={stop}>Stop</button>
+      <canvas ref={canvasRef} width={800} height={200} />
+    </div>
+  );
+}
+```
+
+## Architecture
+
+### Shared AudioContext
+
+Recording uses the same global AudioContext as playback (from `@waveform-playlist/playout`):
+
+```typescript
+import { getGlobalContext } from '@waveform-playlist/playout';
+
+const context = getGlobalContext(); // Tone.js Context
+const audioContext = context.rawContext; // Native AudioContext
+```
+
+**Critical:** Context must be resumed on user interaction via `resumeGlobalAudioContext()`
+
+### AudioWorklet Processing
+
+Recording uses AudioWorklet (not deprecated ScriptProcessorNode) for low-latency, glitch-free recording:
+
+1. Load worklet processor into AudioContext
+2. Create `AudioWorkletNode` connected to microphone
+3. Worklet sends audio chunks via `postMessage()`
+4. Main thread accumulates chunks and generates peaks
+
+### MediaStreamSource Per Hook
+
+Each recording hook creates its own `MediaStreamSource` from the shared context to avoid Firefox "Can't connect nodes from different AudioContexts" errors:
+
+```typescript
+const context = getGlobalContext();
+const source = context.createMediaStreamSource(stream);
+const meter = new Meter({ smoothing, context });
+source.connect(meter);
+```
+
+### VU Meter Normalization
+
+`useMicrophoneLevel` uses Tone.js `Meter` which returns dB values. The hook converts to 0-1 range:
+
+```typescript
+// Meter returns -Infinity to 0 dB
+// Map -100dB..0dB to 0..1 (-100dB floor for Firefox compatibility)
+const normalized = Math.max(0, Math.min(1, (dbValue + 100) / 100));
+```
+
+**Why -100dB floor:** Firefox reports lower dB values than Chrome for quiet input. Using -60dB would map all quiet signals to 0.
+
+## Important Notes
+
+### Recording-Optimized Audio Constraints
+
+Defaults disable processing for music/voice recording:
+
+- `echoCancellation: false`
+- `noiseSuppression: false`  
+- `autoGainControl: false`
+- `latency: 0`
+
+Users can override via `audioConstraints` parameter.
+
+### AudioWorklet Debugging
+
+**Critical:** `console.log()` in AudioWorklet does NOT appear in browser console!
+
+**Solutions:**
+1. Send debug data via `postMessage()` to main thread
+2. Update React state/UI to display values  
+3. Use live waveform visualization
+
+See `DEBUGGING.md` in repo root for complete worklet debugging guide.
+
+### Browser Compatibility
+
+Requires:
+- AudioWorklet support (Chrome 66+, Firefox 76+, Safari 14.1+)
+- `navigator.mediaDevices.getUserMedia()`
+- Modern Web Audio API
+
+No support for IE11 or older browsers.
+
+### Sample Rate
+
+Default sample rate matches the AudioContext sample rate (typically 44100 or 48000 Hz). Can be configured via `RecordingOptions.sampleRate`, but hardware may override.
+
+## Type Definitions
+
+```typescript
+export interface RecordingOptions {
+  deviceId?: string;
+  sampleRate?: number;
+  onDataAvailable?: (audioData: Float32Array) => void;
+  onError?: (error: Error) => void;
+}
+
+export interface RecordingData {
+  audioBuffer: AudioBuffer;
+  duration: number;
+  sampleRate: number;
+}
+
+export interface MicrophoneDevice {
+  deviceId: string;
+  label: string;
+}
+
+export interface UseMicrophoneLevelOptions {
+  stream: MediaStream | null;
+  smoothing?: number; // 0.0-1.0, default 0.8
+}
+
+export interface UseIntegratedRecordingOptions {
+  onTracksChange: (tracks: ClipTrack[]) => void;
+  trackNamePrefix?: string;
+  deviceId?: string;
+}
+
+export type RecordingState = 'inactive' | 'recording' | 'paused';
+```
+
+## Related Packages
+
+- [Browser](/api/packages/browser) - Playlist integration for recorded tracks
+- [Playout](/api/packages/playout) - Provides shared AudioContext
+- [Core](/api/packages/core) - ClipTrack types for recorded audio
+- [UI Components](/api/packages/ui-components) - Waveform visualization components

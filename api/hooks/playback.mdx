@@ -1,0 +1,391 @@
+---
+title: Playback Hooks
+description: React hooks for controlling playlist playback, accessing state, and managing playback animations
+---
+
+Playback hooks provide access to the playlist's playback system through React contexts. These hooks must be used within a `WaveformPlaylistProvider`.
+
+## usePlaylistControls
+
+Access playback control methods and track manipulation functions.
+
+### Import
+
+```typescript
+import { usePlaylistControls } from '@waveform-playlist/browser';
+```
+
+### Usage
+
+```typescript
+function PlaybackButtons() {
+  const { play, pause, stop, setCurrentTime } = usePlaylistControls();
+
+  return (
+    <div>
+      <button onClick={() => play()}>Play</button>
+      <button onClick={() => pause()}>Pause</button>
+      <button onClick={() => stop()}>Stop</button>
+      <button onClick={() => setCurrentTime(0)}>Rewind</button>
+    </div>
+  );
+}
+```
+
+### Return Value
+
+Returns an object with all playback and playlist control methods:
+
+<ResponseField name="play" type="(startTime?: number, playDuration?: number) => Promise<void>">
+  Start playback. Optionally specify a start time and duration.
+  
+  **Parameters:**
+  - `startTime` - Time in seconds to start playback from (default: current time)
+  - `playDuration` - Duration in seconds to play (default: play to end)
+</ResponseField>
+
+<ResponseField name="pause" type="() => void">
+  Pause playback. Maintains the current position.
+</ResponseField>
+
+<ResponseField name="stop" type="() => void">
+  Stop playback. May reset position depending on configuration.
+</ResponseField>
+
+<ResponseField name="seekTo" type="(time: number) => void">
+  Seek to a specific time in seconds.
+</ResponseField>
+
+<ResponseField name="setCurrentTime" type="(time: number) => void">
+  Set the current playback position in seconds.
+</ResponseField>
+
+<ResponseField name="setTrackMute" type="(trackIndex: number, muted: boolean) => void">
+  Mute or unmute a track.
+</ResponseField>
+
+<ResponseField name="setTrackSolo" type="(trackIndex: number, soloed: boolean) => void">
+  Solo or unsolo a track. Soloed tracks mute all other tracks.
+</ResponseField>
+
+<ResponseField name="setTrackVolume" type="(trackIndex: number, volume: number) => void">
+  Set track volume (0-1).
+</ResponseField>
+
+<ResponseField name="setTrackPan" type="(trackIndex: number, pan: number) => void">
+  Set track stereo pan (-1 to 1, where -1 is left, 0 is center, 1 is right).
+</ResponseField>
+
+<ResponseField name="setSelection" type="(start: number, end: number) => void">
+  Set the time selection range in seconds.
+</ResponseField>
+
+<ResponseField name="setSelectedTrackId" type="(trackId: string | null) => void">
+  Select a track by ID for editing operations.
+</ResponseField>
+
+<ResponseField name="setTimeFormat" type="(format: TimeFormat) => void">
+  Set the time display format ('seconds', 'hh:mm:ss', 'hh:mm:ss.u').
+</ResponseField>
+
+<ResponseField name="formatTime" type="(seconds: number) => string">
+  Format a time value according to the current time format.
+</ResponseField>
+
+<ResponseField name="zoomIn" type="() => void">
+  Zoom in on the waveform visualization.
+</ResponseField>
+
+<ResponseField name="zoomOut" type="() => void">
+  Zoom out on the waveform visualization.
+</ResponseField>
+
+<ResponseField name="setMasterVolume" type="(volume: number) => void">
+  Set the master output volume (0-1).
+</ResponseField>
+
+<ResponseField name="setAutomaticScroll" type="(enabled: boolean) => void">
+  Enable or disable automatic scrolling during playback.
+</ResponseField>
+
+<ResponseField name="setScrollContainer" type="(element: HTMLDivElement | null) => void">
+  Set the container element for automatic scrolling.
+</ResponseField>
+
+<ResponseField name="scrollContainerRef" type="React.RefObject<HTMLDivElement | null>">
+  Ref to the scroll container element.
+</ResponseField>
+
+<ResponseField name="setContinuousPlay" type="(enabled: boolean) => void">
+  Enable continuous playback through annotations.
+</ResponseField>
+
+<ResponseField name="setLinkEndpoints" type="(enabled: boolean) => void">
+  Link annotation endpoints for connected editing.
+</ResponseField>
+
+<ResponseField name="setAnnotationsEditable" type="(enabled: boolean) => void">
+  Enable or disable annotation editing.
+</ResponseField>
+
+<ResponseField name="setAnnotations" type="React.Dispatch<React.SetStateAction<AnnotationData[]>>">
+  React state setter for annotations array.
+</ResponseField>
+
+<ResponseField name="setActiveAnnotationId" type="(id: string | null) => void">
+  Set the currently active annotation by ID.
+</ResponseField>
+
+<ResponseField name="setLoopEnabled" type="(enabled: boolean) => void">
+  Enable or disable loop playback.
+</ResponseField>
+
+<ResponseField name="setLoopRegion" type="(start: number, end: number) => void">
+  Set the loop region start and end times in seconds.
+</ResponseField>
+
+<ResponseField name="setLoopRegionFromSelection" type="() => void">
+  Set the loop region to match the current selection.
+</ResponseField>
+
+<ResponseField name="clearLoopRegion" type="() => void">
+  Clear the loop region.
+</ResponseField>
+
+---
+
+## usePlaylistState
+
+Access current playlist state values.
+
+### Import
+
+```typescript
+import { usePlaylistState } from '@waveform-playlist/browser';
+```
+
+### Usage
+
+```typescript
+function SelectionDisplay() {
+  const { selectionStart, selectionEnd, isLoopEnabled, loopStart, loopEnd } = usePlaylistState();
+
+  return (
+    <div>
+      <p>Selection: {selectionStart.toFixed(2)}s - {selectionEnd.toFixed(2)}s</p>
+      {isLoopEnabled && (
+        <p>Loop: {loopStart.toFixed(2)}s - {loopEnd.toFixed(2)}s</p>
+      )}
+    </div>
+  );
+}
+```
+
+### Return Value
+
+<ResponseField name="continuousPlay" type="boolean">
+  Whether continuous playback through annotations is enabled.
+</ResponseField>
+
+<ResponseField name="linkEndpoints" type="boolean">
+  Whether annotation endpoints are linked for connected editing.
+</ResponseField>
+
+<ResponseField name="annotationsEditable" type="boolean">
+  Whether annotations can be edited.
+</ResponseField>
+
+<ResponseField name="isAutomaticScroll" type="boolean">
+  Whether automatic scrolling during playback is enabled.
+</ResponseField>
+
+<ResponseField name="isLoopEnabled" type="boolean">
+  Whether loop playback is enabled.
+</ResponseField>
+
+<ResponseField name="annotations" type="AnnotationData[]">
+  Array of annotation data objects.
+</ResponseField>
+
+<ResponseField name="activeAnnotationId" type="string | null">
+  ID of the currently active annotation.
+</ResponseField>
+
+<ResponseField name="selectionStart" type="number">
+  Start time of the current selection in seconds.
+</ResponseField>
+
+<ResponseField name="selectionEnd" type="number">
+  End time of the current selection in seconds.
+</ResponseField>
+
+<ResponseField name="selectedTrackId" type="string | null">
+  ID of the currently selected track for editing operations.
+</ResponseField>
+
+<ResponseField name="loopStart" type="number">
+  Start time of the loop region in seconds.
+</ResponseField>
+
+<ResponseField name="loopEnd" type="number">
+  End time of the loop region in seconds.
+</ResponseField>
+
+---
+
+## usePlaybackAnimation
+
+Access playback animation state and timing information. Use this for components that need to render in sync with audio playback at 60fps.
+
+### Import
+
+```typescript
+import { usePlaybackAnimation } from '@waveform-playlist/browser';
+```
+
+### Usage
+
+```typescript
+function AnimatedPlayhead() {
+  const { isPlaying, getPlaybackTime } = usePlaybackAnimation();
+  const [position, setPosition] = useState(0);
+  const animationRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isPlaying) {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+      return;
+    }
+
+    const animate = () => {
+      const currentTime = getPlaybackTime();
+      setPosition(currentTime);
+      animationRef.current = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [isPlaying, getPlaybackTime]);
+
+  return <div style={{ left: `${position * 100}px` }} />;
+}
+```
+
+### Return Value
+
+<ResponseField name="isPlaying" type="boolean">
+  Whether audio is currently playing.
+</ResponseField>
+
+<ResponseField name="currentTime" type="number">
+  Current playback time in seconds. Updates at 60fps during playback.
+</ResponseField>
+
+<ResponseField name="currentTimeRef" type="React.RefObject<number>">
+  Ref to the current time value. Use this in animation loops to avoid stale closures.
+</ResponseField>
+
+<ResponseField name="playbackStartTimeRef" type="React.RefObject<number>">
+  AudioContext currentTime when playback started. Used for drift-free timing calculations.
+</ResponseField>
+
+<ResponseField name="audioStartPositionRef" type="React.RefObject<number>">
+  Audio position in seconds when playback started.
+</ResponseField>
+
+<ResponseField name="getPlaybackTime" type="() => number">
+  Returns the current playback time from the engine. Auto-wraps at loop boundaries.
+  
+  This is the recommended way to get playback time in animation loops as it reads directly from `Transport.seconds` for perfect audio sync.
+</ResponseField>
+
+---
+
+## usePlaylistData
+
+Access playlist data including tracks, audio buffers, and peaks.
+
+### Import
+
+```typescript
+import { usePlaylistData } from '@waveform-playlist/browser';
+```
+
+### Usage
+
+```typescript
+function PlaylistInfo() {
+  const { duration, tracks, isReady, samplesPerPixel, sampleRate, canZoomIn, canZoomOut } = usePlaylistData();
+
+  if (!isReady) {
+    return <div>Loading...</div>;
+  }
+
+  return (
+    <div>
+      <p>Duration: {duration.toFixed(2)}s</p>
+      <p>Tracks: {tracks.length}</p>
+      <p>Sample Rate: {sampleRate} Hz</p>
+      <p>Zoom: {samplesPerPixel} samples/pixel</p>
+    </div>
+  );
+}
+```
+
+### Return Value
+
+<ResponseField name="duration" type="number">
+  Total duration of the playlist in seconds.
+</ResponseField>
+
+<ResponseField name="audioBuffers" type="AudioBuffer[]">
+  Array of AudioBuffer objects for all tracks.
+</ResponseField>
+
+<ResponseField name="peaksDataArray" type="TrackClipPeaks[]">
+  Array of peak data for all tracks. Each track contains an array of clip peaks.
+</ResponseField>
+
+<ResponseField name="tracks" type="ClipTrack[]">
+  Array of track objects with clips and metadata.
+</ResponseField>
+
+<ResponseField name="trackStates" type="TrackState[]">
+  Array of track state objects (muted, soloed, volume, pan).
+</ResponseField>
+
+<ResponseField name="isReady" type="boolean">
+  Whether the playlist has finished loading and is ready for playback.
+</ResponseField>
+
+<ResponseField name="samplesPerPixel" type="number">
+  Current zoom level in samples per pixel.
+</ResponseField>
+
+<ResponseField name="sampleRate" type="number">
+  Sample rate of the audio in Hz.
+</ResponseField>
+
+<ResponseField name="masterVolume" type="number">
+  Master output volume (0-1).
+</ResponseField>
+
+<ResponseField name="canZoomIn" type="boolean">
+  Whether zoom in is currently available.
+</ResponseField>
+
+<ResponseField name="canZoomOut" type="boolean">
+  Whether zoom out is currently available.
+</ResponseField>
+
+<ResponseField name="timeFormat" type="TimeFormat">
+  Current time display format.
+</ResponseField>

@@ -1,0 +1,384 @@
+---
+title: '@waveform-playlist/core'
+description: 'Core types, interfaces, and utilities for waveform-playlist'
+---
+
+# @waveform-playlist/core
+
+The core package provides foundational types, interfaces, and utilities used throughout the Waveform Playlist library. It has zero dependencies and can be used independently for type-safe audio editing data structures.
+
+## Installation
+
+```bash
+npm install @waveform-playlist/core
+```
+
+**No peer dependencies required** - this package is dependency-free.
+
+## Main Exports
+
+### Types
+
+#### Audio Clip Model
+
+<ParamField path="AudioClip" type="interface">
+  Represents a single audio clip on the timeline with sample-accurate positioning
+</ParamField>
+
+<ParamField path="ClipTrack" type="interface">
+  Represents a track containing multiple audio clips with volume, pan, and effects
+</ParamField>
+
+<ParamField path="Timeline" type="interface">
+  Represents the complete project with all tracks, sample rate, and duration
+</ParamField>
+
+<ParamField path="WaveformDataObject" type="interface">
+  Interface for waveform-data.js library objects (BBC audiowaveform format)
+</ParamField>
+
+#### Configuration Types
+
+<ParamField path="Fade" type="interface">
+  Fade configuration with duration and type (linear, logarithmic, sCurve, exponential)
+</ParamField>
+
+<ParamField path="FadeType" type="type">
+  Union type: `'logarithmic' | 'linear' | 'sCurve' | 'exponential'`
+</ParamField>
+
+<ParamField path="WaveformConfig" type="interface">
+  Waveform visualization configuration (sample rate, samples per pixel, colors)
+</ParamField>
+
+<ParamField path="PlaylistConfig" type="interface">
+  Complete playlist configuration (zoom levels, colors, controls, timescale)
+</ParamField>
+
+<ParamField path="TimeSelection" type="interface">
+  Time selection with start and end times
+</ParamField>
+
+#### Peak Data Types
+
+<ParamField path="Peaks" type="type">
+  Union type for peak arrays: `Int8Array | Int16Array`
+</ParamField>
+
+<ParamField path="Bits" type="type">
+  Union type for bit depth: `8 | 16`
+</ParamField>
+
+<ParamField path="PeakData" type="interface">
+  Result of peak extraction with interleaved min/max data for each channel
+</ParamField>
+
+#### Spectrogram Types
+
+<ParamField path="RenderMode" type="type">
+  Visualization mode: `'waveform' | 'spectrogram'`
+</ParamField>
+
+<ParamField path="SpectrogramConfig" type="interface">
+  FFT configuration (size, window type, frequency scale, mel bands, etc.)
+</ParamField>
+
+<ParamField path="ColorMapValue" type="type">
+  Predefined color map name or custom color array
+</ParamField>
+
+#### Annotation Types
+
+<ParamField path="AnnotationData" type="interface">
+  Annotation with start/end times, label, and optional ID
+</ParamField>
+
+<ParamField path="AnnotationFormat" type="type">
+  Export format: `'json' | 'aeneas'`
+</ParamField>
+
+<ParamField path="AnnotationListOptions" type="interface">
+  Configuration for annotation list (annotations array, editable, linkEndpoints, etc.)
+</ParamField>
+
+#### State Enums
+
+<ParamField path="InteractionState" type="enum">
+  User interaction modes: Cursor, Select, Shift, FadeIn, FadeOut
+</ParamField>
+
+<ParamField path="PlayoutState" type="interface">
+  Playback state with isPlaying, isPaused, cursor position, and duration
+</ParamField>
+
+### Factory Functions
+
+<ParamField path="createClip(options)" type="function">
+  Create a new AudioClip with sample-based positioning. Supports peaks-first rendering when audioBuffer is omitted.
+</ParamField>
+
+<ParamField path="createClipFromSeconds(options)" type="function">
+  Create a new AudioClip using time-based values (seconds). Automatically converts to samples.
+</ParamField>
+
+<ParamField path="createTrack(options)" type="function">
+  Create a new ClipTrack with sensible defaults (volume: 1.0, pan: 0, muted: false, etc.)
+</ParamField>
+
+<ParamField path="createTimeline(tracks, sampleRate, options)" type="function">
+  Create a new Timeline and calculate total duration from all clips
+</ParamField>
+
+### Utility Functions
+
+#### Clip Queries
+
+<ParamField path="getClipsInRange(track, startSample, endSample)" type="function">
+  Get all clips that overlap with a sample range
+</ParamField>
+
+<ParamField path="getClipsAtSample(track, sample)" type="function">
+  Get all clips at a specific sample position
+</ParamField>
+
+<ParamField path="clipsOverlap(clip1, clip2)" type="function">
+  Check if two clips overlap in time
+</ParamField>
+
+<ParamField path="sortClipsByTime(clips)" type="function">
+  Sort clips by start time (returns new array)
+</ParamField>
+
+<ParamField path="findGaps(track)" type="function">
+  Find silent regions (gaps) between clips on a track
+</ParamField>
+
+#### Time Conversion
+
+<ParamField path="samplesToSeconds(samples, sampleRate)" type="function">
+  Convert sample count to seconds
+</ParamField>
+
+<ParamField path="secondsToSamples(seconds, sampleRate)" type="function">
+  Convert seconds to sample count (rounded)
+</ParamField>
+
+<ParamField path="samplesToPixels(samples, samplesPerPixel)" type="function">
+  Convert samples to pixel position
+</ParamField>
+
+<ParamField path="pixelsToSamples(pixels, samplesPerPixel)" type="function">
+  Convert pixel position to samples
+</ParamField>
+
+#### Clip Time Helpers
+
+<ParamField path="clipStartTime(clip)" type="function">
+  Get clip start time in seconds
+</ParamField>
+
+<ParamField path="clipEndTime(clip)" type="function">
+  Get clip end time in seconds
+</ParamField>
+
+<ParamField path="clipOffsetTime(clip)" type="function">
+  Get clip trim offset in seconds
+</ParamField>
+
+<ParamField path="clipDurationTime(clip)" type="function">
+  Get clip duration in seconds
+</ParamField>
+
+### Constants
+
+<ParamField path="MAX_CANVAS_WIDTH" type="number">
+  Maximum width for canvas chunks (1000px) for horizontal virtual scrolling
+</ParamField>
+
+## Usage Examples
+
+### Creating a Clip-Based Timeline
+
+```typescript
+import {
+  createClipFromSeconds,
+  createTrack,
+  createTimeline,
+  type AudioClip,
+  type ClipTrack,
+} from '@waveform-playlist/core';
+
+// Create clips using time-based values
+const clip1 = createClipFromSeconds({
+  audioBuffer, // Your Web Audio API AudioBuffer
+  startTime: 0, // Position on timeline (seconds)
+  duration: 5.5, // Clip duration (seconds)
+  offset: 0.2, // Trim start (seconds)
+  gain: 1.0,
+  fadeIn: { duration: 0.5, type: 'linear' },
+  fadeOut: { duration: 0.3, type: 'exponential' },
+});
+
+const clip2 = createClipFromSeconds({
+  audioBuffer: audioBuffer2,
+  startTime: 6.0,
+  gain: 0.8,
+});
+
+// Create a track with clips
+const track = createTrack({
+  name: 'Vocals',
+  clips: [clip1, clip2],
+  volume: 0.85,
+  pan: -0.2, // Slightly left
+  color: '#3b82f6',
+});
+
+// Create timeline
+const timeline = createTimeline([track], 44100, {
+  name: 'My Song',
+  tempo: 120,
+});
+
+console.log(timeline.duration); // Auto-calculated from clips
+```
+
+### Peaks-First Rendering
+
+Create clips with pre-computed waveform data but no audio buffer for instant visual rendering:
+
+```typescript
+import { createClip, loadWaveformData } from '@waveform-playlist/browser';
+import type { WaveformDataObject } from '@waveform-playlist/core';
+
+// Load pre-computed peaks (BBC audiowaveform format)
+const waveformData: WaveformDataObject = await loadWaveformData('/peaks.dat');
+
+// Create clip with peaks only (no audioBuffer yet)
+const clip = createClip({
+  waveformData,
+  startSample: 0,
+  // sampleRate and sourceDurationSamples auto-derived from waveformData
+});
+
+// Visual rendering works immediately!
+// Audio playback requires audioBuffer to be added later:
+clip.audioBuffer = await loadAudioBuffer('/audio.mp3');
+```
+
+### Querying Clips
+
+```typescript
+import {
+  getClipsInRange,
+  getClipsAtSample,
+  clipsOverlap,
+  findGaps,
+} from '@waveform-playlist/core';
+
+// Find clips in a time range (1.5s to 3.0s at 44.1kHz)
+const clipsInRange = getClipsInRange(
+  track,
+  1.5 * 44100, // start sample
+  3.0 * 44100  // end sample
+);
+
+// Find clips at playhead position (2.3s)
+const clipsAtPlayhead = getClipsAtSample(
+  track,
+  2.3 * 44100
+);
+
+// Check for overlaps
+if (clipsOverlap(clip1, clip2)) {
+  console.log('Clips overlap - crossfade opportunity!');
+}
+
+// Find silent gaps
+const gaps = findGaps(track);
+gaps.forEach(gap => {
+  console.log(`Gap: ${gap.durationSamples / 44100}s`);
+});
+```
+
+### Time Conversions
+
+```typescript
+import {
+  samplesToSeconds,
+  secondsToSamples,
+  samplesToPixels,
+  pixelsToSamples,
+} from '@waveform-playlist/core';
+
+const sampleRate = 44100;
+const samplesPerPixel = 100;
+
+// Sample <-> Seconds
+const seconds = samplesToSeconds(44100, sampleRate); // 1.0
+const samples = secondsToSamples(2.5, sampleRate); // 110250
+
+// Sample <-> Pixels
+const pixels = samplesToPixels(44100, samplesPerPixel); // 441
+const samplesFromPx = pixelsToSamples(441, samplesPerPixel); // 44100
+```
+
+## Key Concepts
+
+### Sample-Accurate Positioning
+
+All clip positions, durations, and offsets are stored as **integer sample counts**, not floating-point seconds. This eliminates floating-point precision errors in audio editing:
+
+```typescript
+interface AudioClip {
+  startSample: number;        // Timeline position (samples)
+  durationSamples: number;    // Clip duration (samples)
+  offsetSamples: number;      // Trim start (samples)
+  sampleRate: number;         // For time conversion
+  sourceDurationSamples: number; // Total source length
+}
+```
+
+Convert to seconds only when needed: `seconds = samples / sampleRate`
+
+### Peaks-First Rendering
+
+Clips can be created with `waveformData` but without `audioBuffer`. This enables:
+
+1. **Instant visual rendering** - Load pre-computed peaks (1-2 KB) instead of full audio (MB)
+2. **Progressive loading** - Show waveforms immediately, load audio in background
+3. **Bandwidth optimization** - Only load audio when user needs playback
+
+The `audioBuffer` property is optional - add it later when audio loads.
+
+### Multi-Clip Tracks
+
+Unlike traditional DAWs with single-file-per-track, Waveform Playlist uses a **clip-based model**:
+
+- Each track contains an array of clips
+- Clips can be positioned anywhere on the timeline
+- Gaps between clips are silent
+- Clips can overlap for crossfades
+- Each clip has independent trim points and gain
+
+## Type Safety
+
+This package provides complete TypeScript definitions for all data structures. Import types for full IDE autocomplete and compile-time checking:
+
+```typescript
+import type {
+  AudioClip,
+  ClipTrack,
+  Timeline,
+  Fade,
+  FadeType,
+  AnnotationData,
+  SpectrogramConfig,
+} from '@waveform-playlist/core';
+```
+
+## Related Packages
+
+- [Browser](/api/packages/browser) - Complete React solution using these types
+- [UI Components](/api/packages/ui-components) - React components for visualization
+- [Playout](/api/packages/playout) - Audio playback using these data structures

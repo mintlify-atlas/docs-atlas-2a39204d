@@ -1,0 +1,391 @@
+---
+title: Browser Compatibility
+description: Web Audio API support, Firefox considerations, Safari latency, and AudioWorklet browser support
+---
+
+# Browser Compatibility
+
+Waveform Playlist uses modern web APIs including Web Audio API, AudioWorklets, and OffscreenCanvas. Understanding browser support and known issues helps you build robust applications.
+
+## Web Audio API Support
+
+The library requires Web Audio API for audio playback and effects:
+
+- **Chrome/Edge**: Full support (Chrome 35+, Edge 79+)
+- **Firefox**: Full support (Firefox 25+)
+- **Safari**: Full support (Safari 14.1+, iOS Safari 14.5+)
+- **Opera**: Full support (Opera 22+)
+
+<Note>
+  No polyfills are required for modern browsers (released after 2020).
+</Note>
+
+### AudioContext Initialization
+
+All browsers require user interaction before playing audio:
+
+```tsx
+import { Tone } from 'tone';
+
+function App() {
+  const handleUserInteraction = async () => {
+    // Resume AudioContext after user gesture
+    await Tone.start();
+    // Now audio can play
+  };
+  
+  return (
+    <button onClick={handleUserInteraction}>
+      Start Audio
+    </button>
+  );
+}
+```
+
+The library handles this automatically when you call `play()`, but you may see console warnings if AudioContext is suspended.
+
+## Firefox Compatibility
+
+### AudioListener Issue
+
+Firefox's `AudioListener` implementation differs from Chrome/Safari, causing errors when using native `AudioContext`:
+
+```
+TypeError: param must be an AudioParam
+```
+
+**Solution**: Use Tone.js `Context` class which wraps `standardized-audio-context`:
+
+```tsx
+import { Context, setContext } from 'tone';
+
+// The library uses this pattern internally
+const context = new Context();
+setContext(context);
+
+// Use context methods instead of native AudioContext
+const source = context.createMediaStreamSource(stream);
+const analyser = context.createAnalyser();
+```
+
+<Accordion title="Why standardized-audio-context?">
+  The [standardized-audio-context](https://github.com/chrisguttandin/standardized-audio-context) package normalizes browser differences in Web Audio API implementations. Tone.js uses it internally, so using Tone's `Context` class ensures compatibility.
+  
+  Affected APIs:
+  - `AudioListener` (Firefox)
+  - `AudioWorkletNode` (Firefox parameter handling)
+  - Various `AudioParam` implementations
+</Accordion>
+
+### AudioWorkletNode Firefox Issue
+
+Firefox throws errors when creating `AudioWorkletNode` with native `AudioContext`:
+
+```
+TypeError: parameter 1 is not of type 'BaseAudioContext'
+```
+
+**Solution**: Same as above - use Tone.js `Context`:
+
+```tsx
+import { getGlobalContext } from '@waveform-playlist/playout';
+
+const context = getGlobalContext();
+await context.addAudioWorkletModule(workletUrl);
+const workletNode = context.createAudioWorkletNode('processor-name');
+```
+
+### Firefox Testing
+
+Always test audio features in Firefox:
+
+```bash
+# Install Firefox Developer Edition for latest features
+brew install --cask firefox-developer-edition
+
+# Or use Firefox in CI
+npx playwright test --browser=firefox
+```
+
+## Safari Compatibility
+
+### Safari AudioContext Latency
+
+Safari has ~2 second latency when calling `Tone.start()` redundantly:
+
+```tsx
+// ❌ BAD: Redundant Tone.start() adds 2s latency on Safari
+await Tone.start();  // Called in initialization
+await Tone.start();  // Called again in play handler - 2s delay!
+```
+
+**Solution**: Call `Tone.start()` once after user interaction:
+
+```tsx
+const audioInitializedRef = useRef(false);
+
+const play = async () => {
+  if (!audioInitializedRef.current) {
+    await Tone.start();
+    audioInitializedRef.current = true;
+  }
+  
+  // Play audio immediately (no latency)
+  playout.play();
+};
+```
+
+The library implements this pattern internally in `TonePlayout.init()`.
+
+### Safari OffscreenCanvas Support
+
+OffscreenCanvas is fully supported in Safari 16.4+ (March 2023):
+
+- **Desktop Safari**: 16.4+
+- **iOS Safari**: 16.4+
+
+For older Safari versions, spectrograms fall back to main-thread rendering:
+
+```tsx
+if (typeof OffscreenCanvas !== 'undefined') {
+  // Use web worker rendering
+  canvas.transferControlToOffscreen();
+} else {
+  // Main thread fallback
+  renderOnMainThread(canvas);
+}
+```
+
+<Warning>
+  iOS Safari 16.3 and below do NOT support OffscreenCanvas. Spectrograms will work but render on the main thread (slower).
+</Warning>
+
+### Safari AudioWorklet Support
+
+AudioWorklets are fully supported in Safari 14.1+ (April 2021):
+
+- **Desktop Safari**: 14.1+
+- **iOS Safari**: 14.5+
+
+No fallback needed for modern iOS devices.
+
+## AudioWorklet Browser Support
+
+AudioWorklets are required for recording and advanced audio processing:
+
+- **Chrome**: 66+ (April 2018)
+- **Edge**: 79+ (January 2020)
+- **Firefox**: 76+ (May 2020)
+- **Safari**: 14.1+ (April 2021)
+- **iOS Safari**: 14.5+ (April 2021)
+
+### Feature Detection
+
+```tsx
+if (typeof AudioWorkletNode === 'undefined') {
+  // AudioWorklets not supported
+  return <div>Recording not supported in this browser</div>;
+}
+```
+
+Or use the recording hook which handles this:
+
+```tsx
+const { isSupported, error } = useRecording();
+
+if (!isSupported) {
+  return <div>Recording requires a modern browser</div>;
+}
+```
+
+## OffscreenCanvas Browser Support
+
+OffscreenCanvas enables web worker rendering for spectrograms:
+
+- **Chrome**: 69+ (September 2018)
+- **Edge**: 79+ (January 2020)
+- **Firefox**: 105+ (September 2022)
+- **Safari**: 16.4+ (March 2023)
+- **iOS Safari**: 16.4+ (March 2023)
+
+### Graceful Degradation
+
+The library falls back to main-thread rendering when OffscreenCanvas is unavailable:
+
+```tsx
+function SpectrogramChannel({ audioBuffer }: Props) {
+  const hasOffscreenCanvas = typeof OffscreenCanvas !== 'undefined';
+  
+  if (hasOffscreenCanvas) {
+    // Web worker rendering (faster, non-blocking)
+    return <OffscreenSpectrogramCanvas audioBuffer={audioBuffer} />;
+  } else {
+    // Main thread rendering (slower, may block UI)
+    return <MainThreadSpectrogramCanvas audioBuffer={audioBuffer} />;
+  }
+}
+```
+
+## WebAssembly (Future)
+
+The library does not currently use WebAssembly, but may in the future for:
+
+- Audio codec decoding (FLAC, Opus)
+- High-performance DSP (pitch detection, beat detection)
+- Spectrogram generation
+
+Wasm support:
+- **Chrome**: 57+ (March 2017)
+- **Edge**: 16+ (September 2017)
+- **Firefox**: 52+ (March 2017)
+- **Safari**: 11+ (September 2017)
+
+## Mobile Considerations
+
+### iOS Safari
+
+- **AudioContext**: Requires user interaction to resume
+- **Memory limits**: 2GB on iPhone 12, 4GB on iPhone 13 Pro
+- **Background audio**: Stops when tab is backgrounded (no workaround)
+- **OffscreenCanvas**: Requires iOS 16.4+ (March 2023)
+
+### Android Chrome
+
+- **AudioContext**: Same user interaction requirement
+- **Memory limits**: Varies by device (2-8GB)
+- **Background audio**: Continues in background (use Media Session API)
+- **Performance**: ~50% slower than desktop for spectrogram generation
+
+## Testing Across Browsers
+
+Use Playwright for automated cross-browser testing:
+
+```bash
+# Install browsers
+npx playwright install
+
+# Run tests on all browsers
+npx playwright test
+
+# Run on specific browser
+npx playwright test --browser=firefox
+npx playwright test --browser=webkit  # Safari engine
+```
+
+Playwright config:
+
+```typescript
+// playwright.config.ts
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    },
+    {
+      name: 'Mobile Safari',
+      use: { ...devices['iPhone 13'] },
+    },
+  ],
+});
+```
+
+## Known Browser Bugs
+
+### Chrome: Ghost Ticks (Tone.js #1419)
+
+After stop/start cycles, `Clock._lastUpdate` is stale, causing ghost ticks that trigger schedule callbacks at past positions.
+
+**Workaround**: Advance `_lastUpdate` after `transport.start()`:
+
+```typescript
+const startTime = now();
+transport.start(undefined, startTime);
+(transport as any)._clock._lastUpdate = startTime; // Fix ghost ticks
+```
+
+The library implements this workaround in `TonePlayout.play()`.
+
+**Upstream**: [Tone.js #1419](https://github.com/Tonejs/Tone.js/issues/1419)
+
+### Firefox: AudioListener Parameter Error
+
+Described above. Use Tone.js `Context` instead of native `AudioContext`.
+
+**Upstream**: [Tone.js #681](https://github.com/Tonejs/Tone.js/issues/681)
+
+### Safari: Tone.start() Latency
+
+Described above. Call `Tone.start()` only once.
+
+**Workaround**: Implemented in library's `TonePlayout.init()`.
+
+## Browser Support Matrix
+
+| Feature | Chrome | Firefox | Safari | Edge |
+|---------|--------|---------|--------|------|
+| Web Audio API | ✅ 35+ | ✅ 25+ | ✅ 14.1+ | ✅ 79+ |
+| AudioWorklet | ✅ 66+ | ✅ 76+ | ✅ 14.1+ | ✅ 79+ |
+| OffscreenCanvas | ✅ 69+ | ✅ 105+ | ✅ 16.4+ | ✅ 79+ |
+| MediaRecorder | ✅ 49+ | ✅ 25+ | ✅ 14.1+ | ✅ 79+ |
+| AudioContext.suspend | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
+| playbackRate (pitch) | ✅ Yes | ✅ Yes | ✅ 15+ | ✅ Yes |
+
+## Recommended Minimum Versions
+
+For full feature support:
+
+- **Chrome**: 105+ (all features including OffscreenCanvas in workers)
+- **Firefox**: 105+ (OffscreenCanvas support added)
+- **Safari**: 16.4+ (OffscreenCanvas support added)
+- **Edge**: 105+ (follows Chromium)
+
+For basic playback and editing (no spectrograms):
+
+- **Chrome**: 66+
+- **Firefox**: 76+
+- **Safari**: 14.1+
+- **Edge**: 79+
+
+## User Agent Detection
+
+Avoid user agent sniffing. Use feature detection instead:
+
+```tsx
+// ✅ GOOD: Feature detection
+const hasOffscreenCanvas = typeof OffscreenCanvas !== 'undefined';
+const hasAudioWorklet = typeof AudioWorkletNode !== 'undefined';
+
+// ❌ BAD: User agent sniffing
+const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+```
+
+## Reporting Browser Issues
+
+When filing issues:
+
+1. **Specify browser version**: Chrome 120.0.6099.129 (not just "Chrome")
+2. **Include OS**: macOS 14.1, Windows 11, iOS 17.2, etc.
+3. **Test in other browsers**: Is it browser-specific or a library bug?
+4. **Check console**: Include full error messages and stack traces
+5. **Minimal reproduction**: Provide CodeSandbox or GitHub repo
+
+## Future Compatibility
+
+Upcoming Web Audio API features:
+
+- **AudioContext.setSinkId()**: Output device selection (Chrome 110+)
+- **AudioWorklet in SharedWorker**: Share audio processing across tabs
+- **WebCodecs**: Hardware-accelerated audio encoding/decoding
+
+The library will adopt these as browser support reaches >90% market share.

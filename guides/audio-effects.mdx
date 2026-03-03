@@ -1,0 +1,457 @@
+---
+title: Audio Effects
+description: Apply real-time Tone.js effects with dynamic parameter control
+---
+
+# Audio Effects
+
+Waveform Playlist provides 20 Tone.js effects organized by category, with full real-time parameter control for both master and per-track effects chains.
+
+## Effect Categories
+
+- **Reverb** (3): Reverb, Freeverb, JCReverb
+- **Delay** (2): FeedbackDelay, PingPongDelay
+- **Modulation** (5): Chorus, Phaser, Tremolo, Vibrato, AutoWah
+- **Filter** (3): AutoFilter, EQ3, Filter
+- **Distortion** (3): Distortion, BitCrusher, Chebyshev
+- **Dynamics** (3): Compressor, Limiter, Gate
+- **Spatial** (1): StereoWidener
+
+Location: `packages/browser/src/effects/effectDefinitions.ts`
+
+## Master Effects Chain
+
+Use `useDynamicEffects` for master effects applied to the entire mix:
+
+```typescript
+import { useDynamicEffects } from '@waveform-playlist/browser';
+import { WaveformPlaylistProvider } from '@waveform-playlist/browser';
+
+function PlaylistWithEffects() {
+  const {
+    activeEffects,
+    availableEffects,
+    addEffect,
+    removeEffect,
+    updateParameter,
+    toggleBypass,
+    clearAllEffects,
+    masterEffects,
+  } = useDynamicEffects();
+
+  return (
+    <div>
+      {/* Effect selector */}
+      <select onChange={(e) => addEffect(e.target.value)}>
+        <option>Add effect...</option>
+        {availableEffects.map((effect) => (
+          <option key={effect.id} value={effect.id}>
+            {effect.name} ({effect.category})
+          </option>
+        ))}
+      </select>
+
+      {/* Active effects */}
+      {activeEffects.map((effect) => (
+        <div key={effect.instanceId}>
+          <h4>{effect.definition.name}</h4>
+          <button onClick={() => toggleBypass(effect.instanceId)}>
+            {effect.bypassed ? 'Enable' : 'Bypass'}
+          </button>
+          <button onClick={() => removeEffect(effect.instanceId)}>
+            Remove
+          </button>
+          
+          {/* Parameters */}
+          {effect.definition.parameters.map((param) => (
+            <div key={param.name}>
+              <label>{param.label}</label>
+              <input
+                type="range"
+                min={param.min}
+                max={param.max}
+                step={param.step || 0.01}
+                value={effect.params[param.name] as number}
+                onChange={(e) =>
+                  updateParameter(
+                    effect.instanceId,
+                    param.name,
+                    parseFloat(e.target.value)
+                  )
+                }
+              />
+              <span>{effect.params[param.name]}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+
+      <WaveformPlaylistProvider
+        tracks={tracks}
+        masterEffects={masterEffects}  // Connect to provider
+      >
+        {/* Playlist UI */}
+      </WaveformPlaylistProvider>
+    </div>
+  );
+}
+```
+
+## Master Effects Hook Interface
+
+```typescript
+interface UseDynamicEffectsReturn {
+  // State
+  activeEffects: ActiveEffect[];
+  availableEffects: EffectDefinition[];
+
+  // Actions
+  addEffect: (effectId: string) => void;
+  removeEffect: (instanceId: string) => void;
+  updateParameter: (
+    instanceId: string,
+    paramName: string,
+    value: number | string | boolean
+  ) => void;
+  toggleBypass: (instanceId: string) => void;
+  reorderEffects: (fromIndex: number, toIndex: number) => void;
+  clearAllEffects: () => void;
+
+  // For connecting to audio graph
+  masterEffects: EffectsFunction;
+
+  // For offline rendering (WAV export)
+  createOfflineEffectsFunction: () => EffectsFunction | undefined;
+
+  // For visualization
+  analyserRef: RefObject<Analyser | null>;
+}
+```
+
+Location: `packages/browser/src/hooks/useDynamicEffects.ts:19-47`
+
+## Per-Track Effects
+
+Use `useTrackDynamicEffects` for independent effects on each track:
+
+```typescript
+import { useTrackDynamicEffects } from '@waveform-playlist/browser';
+
+function MultiTrackEffects() {
+  const {
+    trackEffectsState,
+    addEffectToTrack,
+    removeEffectFromTrack,
+    updateTrackEffectParameter,
+    toggleBypass,
+    clearTrackEffects,
+    getTrackEffectsFunction,
+  } = useTrackDynamicEffects();
+
+  const { tracks } = useAudioTracks([
+    {
+      src: 'vocals.mp3',
+      name: 'Vocals',
+      effects: getTrackEffectsFunction('track-1'),  // Link effects to track
+    },
+    {
+      src: 'drums.mp3',
+      name: 'Drums',
+      effects: getTrackEffectsFunction('track-2'),
+    },
+  ]);
+
+  return (
+    <div>
+      {tracks.map((track) => {
+        const effects = trackEffectsState.get(track.id) || [];
+        
+        return (
+          <div key={track.id}>
+            <h3>{track.name}</h3>
+            
+            <button onClick={() => addEffectToTrack(track.id, 'reverb')}>
+              Add Reverb
+            </button>
+            
+            {effects.map((effect) => (
+              <div key={effect.instanceId}>
+                <span>{effect.definition.name}</span>
+                <button onClick={() => toggleBypass(track.id, effect.instanceId)}>
+                  {effect.bypassed ? 'Enable' : 'Bypass'}
+                </button>
+                <button onClick={() => removeEffectFromTrack(track.id, effect.instanceId)}>
+                  Remove
+                </button>
+                
+                {effect.definition.parameters.map((param) => (
+                  <input
+                    key={param.name}
+                    type="range"
+                    min={param.min}
+                    max={param.max}
+                    value={effect.params[param.name] as number}
+                    onChange={(e) =>
+                      updateTrackEffectParameter(
+                        track.id,
+                        effect.instanceId,
+                        param.name,
+                        parseFloat(e.target.value)
+                      )
+                    }
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        );
+      })}
+      
+      <WaveformPlaylistProvider tracks={tracks}>
+        {/* Playlist UI */}
+      </WaveformPlaylistProvider>
+    </div>
+  );
+}
+```
+
+Location: `packages/browser/src/hooks/useTrackDynamicEffects.ts`
+
+## Per-Track Effects Hook Interface
+
+```typescript
+interface UseTrackDynamicEffectsReturn {
+  // State per track
+  trackEffectsState: Map<string, TrackActiveEffect[]>;
+
+  // Actions
+  addEffectToTrack: (trackId: string, effectId: string) => void;
+  removeEffectFromTrack: (trackId: string, instanceId: string) => void;
+  updateTrackEffectParameter: (
+    trackId: string,
+    instanceId: string,
+    paramName: string,
+    value: number | string | boolean
+  ) => void;
+  toggleBypass: (trackId: string, instanceId: string) => void;
+  clearTrackEffects: (trackId: string) => void;
+  getTrackEffectsFunction: (trackId: string) => TrackEffectsFunction | undefined;
+
+  // For offline rendering (WAV export)
+  createOfflineTrackEffectsFunction: (trackId: string) => TrackEffectsFunction | undefined;
+
+  // Available effects
+  availableEffects: EffectDefinition[];
+}
+```
+
+Location: `packages/browser/src/hooks/useTrackDynamicEffects.ts:24-49`
+
+## Effect Definition Structure
+
+```typescript
+interface EffectDefinition {
+  id: string;                      // 'reverb', 'delay', etc.
+  name: string;                    // Display name
+  category: string;                // 'Reverb', 'Delay', 'Modulation', etc.
+  toneEffectClass: string;         // Tone.js class name
+  parameters: EffectParameter[];
+}
+
+interface EffectParameter {
+  name: string;                    // Parameter key
+  label: string;                   // Display label
+  min: number;
+  max: number;
+  default: number | string | boolean;
+  step?: number;
+  unit?: string;                   // 'dB', 'Hz', 'ms', '%'
+  type?: 'number' | 'choice';      // Default: 'number'
+  choices?: string[];              // For 'choice' type
+}
+```
+
+Location: `packages/browser/src/effects/effectDefinitions.ts`
+
+## Example: Reverb Definition
+
+```typescript
+{
+  id: 'reverb',
+  name: 'Reverb',
+  category: 'Reverb',
+  toneEffectClass: 'Reverb',
+  parameters: [
+    { name: 'wet', label: 'Wet', min: 0, max: 1, default: 0.5, unit: '%' },
+    { name: 'decay', label: 'Decay', min: 0.001, max: 10, default: 1.5, unit: 's' },
+    { name: 'preDelay', label: 'Pre-Delay', min: 0, max: 0.5, default: 0.01, unit: 's' },
+  ],
+}
+```
+
+## Real-Time Parameter Updates
+
+Parameters update instantly without rebuilding the effects chain:
+
+```typescript
+const { updateParameter } = useDynamicEffects();
+
+// Update reverb decay
+updateParameter('effect-instance-id', 'decay', 3.0);
+
+// Update filter frequency
+updateParameter('effect-instance-id', 'frequency', 1000);
+```
+
+Location: `packages/browser/src/hooks/useDynamicEffects.ts:159-175`
+
+## Bypass Pattern
+
+Bypassing stores the original `wet` value and sets it to 0:
+
+```typescript
+const toggleBypass = (instanceId: string) => {
+  const effect = activeEffects.find((e) => e.instanceId === instanceId);
+  if (!effect) return;
+
+  const newBypassed = !effect.bypassed;
+  const originalWet = (effect.params.wet as number) ?? 1;
+  
+  // Set wet to 0 when bypassed, restore original when enabled
+  instance.setParameter('wet', newBypassed ? 0 : originalWet);
+};
+```
+
+Location: `packages/browser/src/hooks/useDynamicEffects.ts:178-198`
+
+## Effect Ordering
+
+Reorder effects in the chain:
+
+```typescript
+const { reorderEffects } = useDynamicEffects();
+
+// Move effect from index 2 to index 0
+reorderEffects(2, 0);
+```
+
+Location: `packages/browser/src/hooks/useDynamicEffects.ts:201-208`
+
+## Offline Rendering for WAV Export
+
+Create fresh effect instances for offline rendering:
+
+```typescript
+const { createOfflineEffectsFunction } = useDynamicEffects();
+const { exportWav } = useExportWav();
+
+// Export with master effects
+await exportWav(tracks, trackStates, {
+  effectsFunction: createOfflineEffectsFunction(),
+});
+```
+
+This avoids AudioContext mismatch issues by creating new effect instances in the offline context.
+
+Location: `packages/browser/src/hooks/useDynamicEffects.ts:286-324`
+
+## Example: All 20 Effects
+
+```typescript
+const { availableEffects } = useDynamicEffects();
+
+// Reverb category
+addEffect('reverb');      // Tone.Reverb
+addEffect('freeverb');    // Tone.Freeverb
+addEffect('jcreverb');    // Tone.JCReverb
+
+// Delay category
+addEffect('feedbackDelay');    // Tone.FeedbackDelay
+addEffect('pingPongDelay');    // Tone.PingPongDelay
+
+// Modulation category
+addEffect('chorus');      // Tone.Chorus
+addEffect('phaser');      // Tone.Phaser
+addEffect('tremolo');     // Tone.Tremolo
+addEffect('vibrato');     // Tone.Vibrato
+addEffect('autoWah');     // Tone.AutoWah
+
+// Filter category
+addEffect('autoFilter');  // Tone.AutoFilter
+addEffect('eq3');         // Tone.EQ3
+addEffect('filter');      // Tone.Filter
+
+// Distortion category
+addEffect('distortion');  // Tone.Distortion
+addEffect('bitCrusher');  // Tone.BitCrusher
+addEffect('chebyshev');   // Tone.Chebyshev
+
+// Dynamics category
+addEffect('compressor');  // Tone.Compressor
+addEffect('limiter');     // Tone.Limiter
+addEffect('gate');        // Tone.Gate
+
+// Spatial category
+addEffect('stereoWidener'); // Tone.StereoWidener
+```
+
+## Combining Master and Track Effects
+
+```typescript
+function CompleteEffectsSetup() {
+  // Master effects (applied to final mix)
+  const masterEffectsHook = useDynamicEffects();
+  
+  // Track effects (applied per-track)
+  const trackEffectsHook = useTrackDynamicEffects();
+
+  const { tracks } = useAudioTracks([
+    {
+      src: 'vocals.mp3',
+      name: 'Vocals',
+      effects: trackEffectsHook.getTrackEffectsFunction('track-vocals'),
+    },
+    {
+      src: 'drums.mp3',
+      name: 'Drums',
+      effects: trackEffectsHook.getTrackEffectsFunction('track-drums'),
+    },
+  ]);
+
+  // Add reverb to vocals
+  trackEffectsHook.addEffectToTrack('track-vocals', 'reverb');
+  
+  // Add compression to master
+  masterEffectsHook.addEffect('compressor');
+
+  return (
+    <WaveformPlaylistProvider
+      tracks={tracks}
+      masterEffects={masterEffectsHook.masterEffects}
+    >
+      {/* Playlist UI */}
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+## Signal Flow
+
+```
+Track 1 Audio → Track 1 Effects → Track Volume/Pan → Master Mix
+Track 2 Audio → Track 2 Effects → Track Volume/Pan → Master Mix
+                                                         ↓
+                                                  Master Effects
+                                                         ↓
+                                                  Master Volume
+                                                         ↓
+                                                    Analyser
+                                                         ↓
+                                                   Destination
+```
+
+## Next Steps
+
+- [Export WAV](/guides/export-wav) - Export audio with effects applied
+- [Multi-Track Editing](/guides/multi-track-editing) - Manage multiple tracks
+- [Recording](/guides/recording) - Record with real-time effects

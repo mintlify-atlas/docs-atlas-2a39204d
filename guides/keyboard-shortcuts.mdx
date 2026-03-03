@@ -1,0 +1,382 @@
+---
+title: Keyboard Shortcuts
+description: Add custom keyboard shortcuts for playlist control and editing
+---
+
+# Keyboard Shortcuts
+
+Waveform Playlist provides flexible keyboard shortcut systems for playback control, editing, and custom actions.
+
+## Playback Shortcuts
+
+The `usePlaybackShortcuts` hook provides common media playback shortcuts:
+
+```typescript
+import { usePlaybackShortcuts } from '@waveform-playlist/browser';
+
+function PlaylistWithShortcuts() {
+  usePlaybackShortcuts(); // Enables default shortcuts
+
+  return (
+    <WaveformPlaylistProvider tracks={tracks}>
+      {/* Playlist UI */}
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+### Default Shortcuts
+
+- **Space** - Toggle play/pause
+- **Escape** - Stop playback
+- **0** - Rewind to start (seek to time 0)
+
+Location: `packages/browser/src/hooks/usePlaybackShortcuts.ts:98-117`
+
+## Hook Interface
+
+```typescript
+interface UsePlaybackShortcutsOptions {
+  enabled?: boolean;                           // Enable shortcuts (default: true)
+  additionalShortcuts?: KeyboardShortcut[];    // Add to defaults
+  shortcuts?: KeyboardShortcut[];              // Override defaults
+}
+
+interface UsePlaybackShortcutsReturn {
+  rewindToStart: () => void;
+  togglePlayPause: () => void;
+  stopPlayback: () => void;
+  shortcuts: KeyboardShortcut[];               // Active shortcuts list
+}
+```
+
+Location: `packages/browser/src/hooks/usePlaybackShortcuts.ts:6-29`
+
+## Adding Custom Shortcuts
+
+Extend default shortcuts with additional actions:
+
+```typescript
+import { usePlaybackShortcuts } from '@waveform-playlist/browser';
+import { useClipSplitting } from '@waveform-playlist/browser';
+
+function PlaylistWithCustomShortcuts() {
+  const { splitClipAtPlayhead } = useClipSplitting({ /* ... */ });
+  
+  usePlaybackShortcuts({
+    additionalShortcuts: [
+      {
+        key: 's',
+        action: splitClipAtPlayhead,
+        description: 'Split clip at playhead',
+        preventDefault: true,
+      },
+      {
+        key: 'S',
+        shiftKey: true,
+        action: () => console.log('Split at selection'),
+        description: 'Split at selection boundaries',
+        preventDefault: true,
+      },
+      {
+        key: 'd',
+        action: () => console.log('Delete selected clip'),
+        description: 'Delete selected clip',
+        preventDefault: true,
+      },
+    ],
+  });
+
+  return <WaveformPlaylistProvider tracks={tracks}>...</WaveformPlaylistProvider>;
+}
+```
+
+Location: `packages/browser/src/hooks/usePlaybackShortcuts.ts:40-50`
+
+## Overriding Default Shortcuts
+
+Replace default shortcuts entirely:
+
+```typescript
+usePlaybackShortcuts({
+  shortcuts: [
+    { key: 'p', action: play, description: 'Play' },
+    { key: 'Home', action: rewindToStart, description: 'Go to start' },
+    { key: 'End', action: skipToEnd, description: 'Go to end' },
+  ],
+});
+```
+
+Location: `packages/browser/src/hooks/usePlaybackShortcuts.ts:52-57`
+
+## Custom Keyboard Shortcuts Hook
+
+For complete control, use `useKeyboardShortcuts` directly:
+
+```typescript
+import { useKeyboardShortcuts } from '@waveform-playlist/browser';
+
+function CustomShortcuts() {
+  const { play, pause } = usePlaylistControls();
+  const { zoomIn, zoomOut } = usePlaylistControls();
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      // Playback
+      { key: ' ', action: () => play(), description: 'Play' },
+      { key: 'p', action: pause, description: 'Pause' },
+      
+      // Zoom
+      { key: '=', action: zoomIn, description: 'Zoom in' },
+      { key: '-', action: zoomOut, description: 'Zoom out' },
+      { key: '=', ctrlKey: true, action: zoomIn, description: 'Zoom in (Ctrl)' },
+      { key: '-', ctrlKey: true, action: zoomOut, description: 'Zoom out (Ctrl)' },
+      
+      // Selection
+      {
+        key: 'a',
+        ctrlKey: true,
+        action: () => setSelection(0, duration),
+        description: 'Select all',
+      },
+    ],
+    enabled: true,
+  });
+
+  return <div>...</div>;
+}
+```
+
+Location: `packages/browser/src/hooks/useKeyboardShortcuts.ts:24-46`
+
+## KeyboardShortcut Interface
+
+```typescript
+interface KeyboardShortcut {
+  key: string;                    // Key to press ('a', 'Space', 'ArrowLeft', etc.)
+  ctrlKey?: boolean;              // Require Ctrl (default: false)
+  shiftKey?: boolean;             // Require Shift (default: false)
+  metaKey?: boolean;              // Require Cmd (Mac) / Win (Windows)
+  altKey?: boolean;               // Require Alt/Option (default: false)
+  action: () => void;             // Function to execute
+  description?: string;           // Human-readable description
+  preventDefault?: boolean;       // Prevent default browser action (default: true)
+}
+```
+
+Location: `packages/browser/src/hooks/useKeyboardShortcuts.ts:3-12`
+
+## Modifier Keys
+
+```typescript
+// Ctrl+S (Cmd+S on Mac)
+{ key: 's', ctrlKey: true, action: save }
+
+// Shift+Delete
+{ key: 'Delete', shiftKey: true, action: deleteForever }
+
+// Cmd+Z (Mac) / Win+Z (Windows)
+{ key: 'z', metaKey: true, action: undo }
+
+// Alt+Arrow
+{ key: 'ArrowRight', altKey: true, action: nudgeRight }
+
+// Multiple modifiers
+{ key: 's', ctrlKey: true, shiftKey: true, action: saveAs }
+```
+
+## Input Field Exclusion
+
+Shortcuts are automatically disabled when typing in inputs:
+
+```typescript
+// Shortcuts won't trigger when focus is in:
+// - <input>
+// - <textarea>
+// - contentEditable elements
+```
+
+This prevents accidentally triggering actions while typing text.
+
+Location: `packages/browser/src/hooks/useKeyboardShortcuts.ts:54-59`
+
+## Key Names
+
+Use standard DOM `KeyboardEvent.key` values:
+
+```typescript
+// Letters and numbers
+{ key: 'a' }, { key: 'B' }, { key: '1' }
+
+// Special keys
+{ key: ' ' }           // Space
+{ key: 'Enter' }
+{ key: 'Escape' }
+{ key: 'Backspace' }
+{ key: 'Delete' }
+{ key: 'Tab' }
+
+// Arrow keys
+{ key: 'ArrowLeft' }
+{ key: 'ArrowRight' }
+{ key: 'ArrowUp' }
+{ key: 'ArrowDown' }
+
+// Function keys
+{ key: 'F1' }, { key: 'F2' }, ...
+
+// Navigation
+{ key: 'Home' }
+{ key: 'End' }
+{ key: 'PageUp' }
+{ key: 'PageDown' }
+```
+
+## Prevent Default Behavior
+
+Control whether to prevent browser default actions:
+
+```typescript
+// Prevent default (recommended for most shortcuts)
+{
+  key: ' ',
+  action: togglePlayPause,
+  preventDefault: true,  // Prevents page scroll
+}
+
+// Allow default behavior
+{
+  key: 'F1',
+  action: showHelp,
+  preventDefault: false,  // Still opens browser help
+}
+```
+
+Location: `packages/browser/src/hooks/useKeyboardShortcuts.ts:75-77`
+
+## Shortcut Labels
+
+Generate human-readable labels for shortcuts:
+
+```typescript
+import { getShortcutLabel } from '@waveform-playlist/browser';
+
+const shortcuts = [
+  { key: 's', ctrlKey: true, action: save },
+  { key: 'z', metaKey: true, action: undo },
+];
+
+shortcuts.forEach((shortcut) => {
+  console.log(getShortcutLabel(shortcut));
+  // Mac: "Cmd+S", "Cmd+Z"
+  // Windows/Linux: "Ctrl+S", "Ctrl+Z"
+});
+```
+
+Location: `packages/browser/src/hooks/useKeyboardShortcuts.ts:101-126`
+
+## Enabling/Disabling Shortcuts
+
+```typescript
+const [shortcutsEnabled, setShortcutsEnabled] = useState(true);
+
+useKeyboardShortcuts({
+  shortcuts: myShortcuts,
+  enabled: shortcutsEnabled,  // Toggle via state
+});
+
+// Disable shortcuts when modal is open
+const [isModalOpen, setIsModalOpen] = useState(false);
+
+useKeyboardShortcuts({
+  shortcuts: myShortcuts,
+  enabled: !isModalOpen,
+});
+```
+
+Location: `packages/browser/src/hooks/useKeyboardShortcuts.ts:16`
+
+## Example: Complete Shortcut Setup
+
+```typescript
+import {
+  usePlaybackShortcuts,
+  useKeyboardShortcuts,
+  usePlaylistControls,
+} from '@waveform-playlist/browser';
+
+function PlaylistWithAllShortcuts() {
+  const { zoomIn, zoomOut, setSelection } = usePlaylistControls();
+  const { duration } = usePlaylistData();
+  const { splitClipAtPlayhead } = useClipSplitting({ /* ... */ });
+
+  // Playback shortcuts (Space, Escape, 0)
+  usePlaybackShortcuts();
+
+  // Additional shortcuts
+  useKeyboardShortcuts({
+    shortcuts: [
+      // Zoom
+      { key: '=', action: zoomIn, description: 'Zoom in' },
+      { key: '-', action: zoomOut, description: 'Zoom out' },
+      
+      // Editing
+      { key: 's', action: splitClipAtPlayhead, description: 'Split clip' },
+      { key: 'a', ctrlKey: true, action: () => setSelection(0, duration), description: 'Select all' },
+      
+      // Navigation
+      { key: 'Home', action: () => setCurrentTime(0), description: 'Go to start' },
+      { key: 'End', action: () => setCurrentTime(duration), description: 'Go to end' },
+      { key: 'ArrowLeft', action: () => skipBackward(1), description: 'Skip back 1s' },
+      { key: 'ArrowRight', action: () => skipForward(1), description: 'Skip forward 1s' },
+    ],
+  });
+
+  return <WaveformPlaylistProvider tracks={tracks}>...</WaveformPlaylistProvider>;
+}
+```
+
+## Platform-Specific Shortcuts
+
+```typescript
+const isMac = navigator.platform.includes('Mac');
+
+useKeyboardShortcuts({
+  shortcuts: [
+    // Cross-platform save
+    {
+      key: 's',
+      [isMac ? 'metaKey' : 'ctrlKey']: true,
+      action: save,
+      description: isMac ? 'Cmd+S' : 'Ctrl+S',
+    },
+    // Mac-only
+    ...(isMac ? [
+      { key: 'z', metaKey: true, action: undo, description: 'Undo' },
+    ] : []),
+    // Windows/Linux-only
+    ...(!isMac ? [
+      { key: 'z', ctrlKey: true, action: undo, description: 'Undo' },
+    ] : []),
+  ],
+});
+```
+
+## Cleanup
+
+The hooks automatically clean up event listeners on unmount:
+
+```typescript
+// No manual cleanup needed
+useKeyboardShortcuts({ shortcuts });
+
+// Listeners are removed when component unmounts
+```
+
+Location: `packages/browser/src/hooks/useKeyboardShortcuts.ts:84-92`
+
+## Next Steps
+
+- [Playback Controls](/guides/playback-controls) - Control playback programmatically
+- [Zoom Controls](/guides/zoom-controls) - Implement zoom shortcuts
+- [Annotations](/guides/annotations) - Add annotation navigation shortcuts

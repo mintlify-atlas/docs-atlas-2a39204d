@@ -1,0 +1,410 @@
+---
+title: Custom Themes
+description: Create custom color schemes and visual styles using the WaveformPlaylistTheme interface
+---
+
+# Custom Themes
+
+Waveform Playlist uses a comprehensive theming system built on styled-components. Customize every visual aspect of the editor through the `theme` prop.
+
+## Theme Interface
+
+The complete theme interface is defined in `@waveform-playlist/ui-components`:
+
+```typescript
+interface WaveformPlaylistTheme {
+  // Waveform drawing
+  waveformDrawMode?: 'inverted' | 'normal';
+  waveOutlineColor: WaveformColor;
+  waveFillColor: WaveformColor;
+  waveProgressColor: string;
+  
+  // Selected track
+  selectedWaveOutlineColor: WaveformColor;
+  selectedWaveFillColor: WaveformColor;
+  selectedTrackControlsBackground: string;
+  
+  // Timescale
+  timeColor: string;
+  timescaleBackgroundColor: string;
+  
+  // Playback UI
+  playheadColor: string;
+  selectionColor: string;
+  loopRegionColor: string;
+  loopMarkerColor: string;
+  
+  // Clip headers
+  clipHeaderBackgroundColor: string;
+  clipHeaderBorderColor: string;
+  clipHeaderTextColor: string;
+  clipHeaderFontFamily: string;
+  selectedClipHeaderBackgroundColor: string;
+  
+  // Fade overlays
+  fadeOverlayColor: string;
+  
+  // UI components
+  backgroundColor: string;
+  surfaceColor: string;
+  borderColor: string;
+  textColor: string;
+  textColorMuted: string;
+  
+  // Interactive elements
+  inputBackground: string;
+  inputBorder: string;
+  inputText: string;
+  inputPlaceholder: string;
+  inputFocusBorder: string;
+  
+  // Buttons
+  buttonBackground: string;
+  buttonText: string;
+  buttonBorder: string;
+  buttonHoverBackground: string;
+  
+  // Sliders
+  sliderTrackColor: string;
+  sliderThumbColor: string;
+  
+  // Annotations
+  annotationBoxBackground: string;
+  annotationBoxActiveBackground: string;
+  annotationBoxHoverBackground: string;
+  annotationBoxBorder: string;
+  annotationBoxActiveBorder: string;
+  annotationLabelColor: string;
+  annotationResizeHandleColor: string;
+  annotationResizeHandleActiveColor: string;
+  annotationTextItemHoverBackground: string;
+  
+  // Spacing and sizing
+  borderRadius: string;
+  fontFamily: string;
+  fontSize: string;
+  fontSizeSmall: string;
+}
+```
+
+## Waveform Colors with Gradients
+
+Waveform colors support both solid colors and gradients:
+
+```typescript
+type WaveformColor = string | WaveformGradient;
+
+interface WaveformGradient {
+  type: 'linear';
+  direction: 'vertical' | 'horizontal';
+  stops: GradientStop[];
+}
+
+interface GradientStop {
+  offset: number; // 0 to 1
+  color: string;
+}
+```
+
+### Example: Gradient Waveforms
+
+```tsx
+import { WaveformPlaylistProvider } from '@waveform-playlist/browser';
+
+const gradientTheme = {
+  // Vertical gradient (top to bottom)
+  waveFillColor: {
+    type: 'linear',
+    direction: 'vertical',
+    stops: [
+      { offset: 0, color: '#00d4ff' },
+      { offset: 0.5, color: '#0066ff' },
+      { offset: 1, color: '#0033aa' },
+    ],
+  },
+  waveOutlineColor: '#ffffff',
+  waveProgressColor: 'rgba(0, 0, 0, 0.1)',
+};
+
+<WaveformPlaylistProvider tracks={tracks} theme={gradientTheme}>
+  <Waveform />
+</WaveformPlaylistProvider>
+```
+
+## Waveform Draw Modes
+
+Control how colors are applied to waveforms:
+
+### Inverted Mode (Default)
+
+Canvas draws `waveOutlineColor` in areas **without** audio. `waveFillColor` shows through where audio peaks are.
+
+```tsx
+const invertedTheme = {
+  waveformDrawMode: 'inverted', // default
+  waveOutlineColor: '#c49a6c', // Shows as background
+  waveFillColor: '#1a1612',     // Shows as bars
+};
+```
+
+<Note>
+  Inverted mode is ideal for gradient bars - the gradient appears in the waveform peaks.
+</Note>
+
+### Normal Mode
+
+Canvas draws `waveFillColor` bars where audio peaks **are**. `waveOutlineColor` is used as background.
+
+```tsx
+const normalTheme = {
+  waveformDrawMode: 'normal',
+  waveFillColor: '#00d4ff',     // Shows as bars
+  waveOutlineColor: '#1a1a1a', // Shows as background
+};
+```
+
+## Built-in Themes
+
+Two complete themes are exported from `@waveform-playlist/ui-components`:
+
+### Default Theme (Light Mode)
+
+```tsx
+import { defaultTheme } from '@waveform-playlist/ui-components';
+
+const lightTheme = {
+  ...defaultTheme,
+  waveFillColor: '#1a7f8e',
+  playheadColor: '#f00',
+  selectionColor: 'rgba(255, 105, 180, 0.7)', // Hot pink
+  loopRegionColor: 'rgba(59, 130, 246, 0.3)', // Blue
+};
+```
+
+### Dark Theme
+
+```tsx
+import { darkTheme } from '@waveform-playlist/ui-components';
+
+const customDark = {
+  ...darkTheme,
+  // Warm amber waveforms
+  waveOutlineColor: '#c49a6c',
+  waveFillColor: '#1a1612',
+  // Ampelmännchen green UI
+  buttonBackground: '#63C75F',
+  buttonText: '#0a0a0f',
+  playheadColor: '#3a8838',
+};
+```
+
+## Creating Custom Themes
+
+### Approach 1: Partial Theme
+
+Override only the properties you need:
+
+```tsx
+const customTheme = {
+  // Waveform colors
+  waveFillColor: '#ff6b35',
+  waveOutlineColor: '#ffffff',
+  selectedWaveFillColor: '#ff8c5a',
+  
+  // Playback UI
+  playheadColor: '#00ff41',
+  selectionColor: 'rgba(0, 255, 65, 0.3)',
+  
+  // Buttons
+  buttonBackground: '#ff6b35',
+  buttonHoverBackground: '#ff8c5a',
+};
+
+<WaveformPlaylistProvider tracks={tracks} theme={customTheme}>
+  {/* ... */}
+</WaveformPlaylistProvider>
+```
+
+Unspecified properties will use `defaultTheme` values.
+
+### Approach 2: Full Theme
+
+Define a complete theme for total control:
+
+```tsx
+import type { WaveformPlaylistTheme } from '@waveform-playlist/ui-components';
+
+const retroTheme: WaveformPlaylistTheme = {
+  waveformDrawMode: 'inverted',
+  
+  // Waveforms - cyan and magenta
+  waveOutlineColor: '#ff00ff',
+  waveFillColor: '#00ffff',
+  waveProgressColor: 'rgba(255, 255, 255, 0.2)',
+  
+  selectedWaveOutlineColor: '#ff66ff',
+  selectedWaveFillColor: '#66ffff',
+  selectedTrackControlsBackground: '#330033',
+  
+  // Timescale
+  timeColor: '#00ffff',
+  timescaleBackgroundColor: '#1a001a',
+  
+  // Playback
+  playheadColor: '#ffff00',
+  selectionColor: 'rgba(255, 255, 0, 0.4)',
+  loopRegionColor: 'rgba(255, 0, 255, 0.3)',
+  loopMarkerColor: '#ff00ff',
+  
+  // Clip headers
+  clipHeaderBackgroundColor: 'rgba(255, 0, 255, 0.2)',
+  clipHeaderBorderColor: '#ff00ff',
+  clipHeaderTextColor: '#00ffff',
+  clipHeaderFontFamily: '"Courier New", monospace',
+  selectedClipHeaderBackgroundColor: 'rgba(255, 0, 255, 0.4)',
+  
+  // Fades
+  fadeOverlayColor: 'rgba(255, 0, 255, 0.5)',
+  
+  // UI components
+  backgroundColor: '#0a000a',
+  surfaceColor: '#1a001a',
+  borderColor: '#ff00ff',
+  textColor: '#00ffff',
+  textColorMuted: '#66ffff',
+  
+  // Inputs
+  inputBackground: '#1a001a',
+  inputBorder: '#ff00ff',
+  inputText: '#00ffff',
+  inputPlaceholder: '#66ffff',
+  inputFocusBorder: '#ffff00',
+  
+  // Buttons
+  buttonBackground: '#ff00ff',
+  buttonText: '#000000',
+  buttonBorder: '#ff66ff',
+  buttonHoverBackground: '#ff66ff',
+  
+  // Sliders
+  sliderTrackColor: '#330033',
+  sliderThumbColor: '#ffff00',
+  
+  // Annotations
+  annotationBoxBackground: 'rgba(26, 0, 26, 0.9)',
+  annotationBoxActiveBackground: 'rgba(51, 0, 51, 0.95)',
+  annotationBoxHoverBackground: 'rgba(77, 0, 77, 0.98)',
+  annotationBoxBorder: '#ff00ff',
+  annotationBoxActiveBorder: '#ff66ff',
+  annotationLabelColor: '#00ffff',
+  annotationResizeHandleColor: 'rgba(255, 0, 255, 0.5)',
+  annotationResizeHandleActiveColor: 'rgba(255, 0, 255, 0.9)',
+  annotationTextItemHoverBackground: 'rgba(255, 0, 255, 0.1)',
+  
+  // Spacing
+  borderRadius: '0px', // Sharp edges for retro look
+  fontFamily: '"Courier New", monospace',
+  fontSize: '14px',
+  fontSizeSmall: '12px',
+};
+```
+
+## Dynamic Theme Switching
+
+Switch themes at runtime:
+
+```tsx
+import { useState } from 'react';
+import { defaultTheme, darkTheme } from '@waveform-playlist/ui-components';
+
+function App() {
+  const [isDark, setIsDark] = useState(false);
+  const theme = isDark ? darkTheme : defaultTheme;
+  
+  return (
+    <>
+      <button onClick={() => setIsDark(!isDark)}>
+        Toggle Theme
+      </button>
+      
+      <WaveformPlaylistProvider tracks={tracks} theme={theme}>
+        <Waveform />
+      </WaveformPlaylistProvider>
+    </>
+  );
+}
+```
+
+## MediaElement Provider Themes
+
+The `MediaElementPlaylistProvider` uses the same theming system:
+
+```tsx
+import { MediaElementPlaylistProvider } from '@waveform-playlist/browser';
+import { darkTheme } from '@waveform-playlist/ui-components';
+
+<MediaElementPlaylistProvider 
+  track={track} 
+  theme={darkTheme}
+>
+  <Waveform />
+</MediaElementPlaylistProvider>
+```
+
+## Theme Provider Pattern
+
+<Accordion title="How theming works internally">
+  The theme is applied at the provider level using styled-components `ThemeProvider`:
+  
+  1. Provider accepts `theme?: Partial<WaveformPlaylistTheme>`
+  2. Provider merges user theme with `defaultTheme`: `{ ...defaultTheme, ...userTheme }`
+  3. Provider wraps children with `<ThemeProvider theme={mergedTheme}>`
+  4. All styled components access theme via `props.theme.propertyName`
+  
+  This ensures a single source of truth - theme is set once at the provider level and automatically propagates to all components.
+</Accordion>
+
+## Color Format Reference
+
+All color properties accept standard CSS color formats:
+
+```tsx
+const theme = {
+  // Hex
+  playheadColor: '#ff0000',
+  
+  // RGB/RGBA
+  selectionColor: 'rgba(255, 0, 0, 0.5)',
+  
+  // Named colors
+  timeColor: 'red',
+  
+  // HSL
+  buttonBackground: 'hsl(0, 100%, 50%)',
+};
+```
+
+<Warning>
+  Progress color (`waveProgressColor`) must be a solid color string. Gradients are not supported for progress overlays.
+</Warning>
+
+## Best Practices
+
+1. **Start with a built-in theme** - Extend `defaultTheme` or `darkTheme` rather than building from scratch
+2. **Use RGBA for overlays** - `selectionColor`, `loopRegionColor`, and `waveProgressColor` should have transparency
+3. **Test selection visibility** - Ensure selection color has sufficient contrast with both selected and unselected waveforms
+4. **Consider color blindness** - Don't rely solely on color to distinguish states (use `selectedTrackControlsBackground` for additional visual feedback)
+5. **Match your app's design** - Use the same color palette and typography as the rest of your application
+
+## Type Safety
+
+Import the theme type for full autocomplete and type checking:
+
+```typescript
+import type { WaveformPlaylistTheme } from '@waveform-playlist/ui-components';
+
+const myTheme: Partial<WaveformPlaylistTheme> = {
+  waveFillColor: '#ff0000', // TypeScript validates property names
+  // playheadColour: '#00ff00', // Error: property doesn't exist
+};
+```

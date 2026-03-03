@@ -1,0 +1,319 @@
+---
+title: Waveform Data
+description: Pre-computed peaks for instant waveform rendering using BBC waveform-data.js
+---
+
+# Waveform Data
+
+The waveform data example demonstrates using pre-computed BBC peaks files for instant waveform rendering, eliminating the need to load full audio files before displaying waveforms.
+
+[View Live Demo →](https://naomiaro.github.io/waveform-playlist/examples/waveform-data)
+
+## What It Demonstrates
+
+- **Instant waveform display** - Load 50KB peaks instead of 3MB audio
+- **BBC peaks format** - Industry-standard waveform data format
+- **Progressive loading** - Tracks appear as peaks load (sub-second)
+- **Background audio loading** - Audio loads in background after peaks
+- **Massive performance gain** - 97% smaller initial download
+- **Real-time progress** - Track loading count indicators
+
+## Complete Example
+
+```tsx
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  WaveformPlaylistProvider,
+  Waveform,
+  PlayButton,
+  PauseButton,
+  useAudioTracks,
+  loadWaveformData,
+  waveformDataToPeaks,
+} from '@waveform-playlist/browser';
+
+// Track configuration with both audio and peaks files
+const trackConfigs = [
+  {
+    name: 'Kick',
+    audioSrc: '/audio/kick.opus',
+    peaksSrc: '/audio/kick.dat',     // BBC peaks (8-bit, 30 samples/pixel)
+    peaksSize: 55,   // KB
+    audioSize: 280,  // KB
+  },
+  {
+    name: 'Bass',
+    audioSrc: '/audio/bass.opus',
+    peaksSrc: '/audio/bass.dat',
+    peaksSize: 53,
+    audioSize: 620,
+  },
+  // ... more tracks
+];
+
+export function WaveformDataExample() {
+  const [bbcPeaks, setBbcPeaks] = useState(new Map());
+
+  // Load BBC peaks PROGRESSIVELY - each track appears as its peaks load!
+  useEffect(() => {
+    trackConfigs.forEach(async (config) => {
+      try {
+        // Load peaks file (50KB)
+        const waveformData = await loadWaveformData(config.peaksSrc);
+        const peaks = waveformDataToPeaks(waveformData, 0);
+
+        // Update state for THIS track immediately - triggers re-render
+        setBbcPeaks(prev => {
+          const newMap = new Map(prev);
+          newMap.set(config.name, {
+            data: peaks.data,
+            bits: peaks.bits,
+            length: peaks.length,
+            sampleRate: peaks.sampleRate,
+            waveformData,
+          });
+          return newMap;
+        });
+      } catch (error) {
+        console.error(`Error loading peaks for ${config.name}:`, error);
+      }
+    });
+  }, []);
+
+  // Build audio configs - only for tracks with peaks loaded
+  const audioConfigs = useMemo(
+    () =>
+      trackConfigs
+        .filter(config => bbcPeaks.has(config.name))
+        .map(config => ({
+          src: config.audioSrc,
+          name: config.name,
+          waveformData: bbcPeaks.get(config.name)?.waveformData,
+        })),
+    [bbcPeaks]
+  );
+
+  // Load audio PROGRESSIVELY - tracks become playable as audio loads
+  const { tracks, loading, loadedCount, totalCount } = useAudioTracks(
+    audioConfigs,
+    { progressive: true }
+  );
+
+  return (
+    <>
+      {loading && <div>Loading audio: {loadedCount}/{totalCount}</div>}
+      
+      <WaveformPlaylistProvider tracks={tracks} samplesPerPixel={1024}>
+        <PlayButton />
+        <PauseButton />
+        <Waveform />
+      </WaveformPlaylistProvider>
+    </>
+  );
+}
+```
+
+## Key Features
+
+### Loading BBC Peaks
+
+Load pre-computed waveform data:
+
+```tsx
+import { loadWaveformData, waveformDataToPeaks } from '@waveform-playlist/browser';
+
+const waveformData = await loadWaveformData('/audio/kick.dat');
+const peaks = waveformDataToPeaks(waveformData, 0); // Channel 0
+
+// Returns:
+// {
+//   data: Int8Array | Int16Array,  // Peak values
+//   bits: 8 | 16,                   // Bit depth
+//   length: number,                 // Number of peaks
+//   sampleRate: number,             // Audio sample rate
+// }
+```
+
+<Note>
+  BBC peaks files (.dat) are generated using the [audiowaveform](https://github.com/bbc/audiowaveform) CLI tool. They contain pre-computed min/max peak values at a fixed samples-per-pixel resolution.
+</Note>
+
+### Progressive Loading Pattern
+
+Load peaks first, then audio in background:
+
+```tsx
+// 1. Load peaks immediately (50KB, <100ms)
+const waveformData = await loadWaveformData('/peaks.dat');
+setBbcPeaks(new Map([['track', waveformData]]));
+// ✅ Waveform visible!
+
+// 2. Load audio in background (3MB, ~2s)
+const audioConfigs = [
+  {
+    src: '/audio.mp3',
+    waveformData, // Pass peaks for instant display
+  },
+];
+const { tracks } = useAudioTracks(audioConfigs, { progressive: true });
+// ✅ Audio loads while waveform is visible
+```
+
+### Two-Stage Loading
+
+**Stage 1: Peaks**
+- Load: 50KB per track
+- Time: &lt;100ms per track
+- Result: Waveforms visible
+
+**Stage 2: Audio**
+- Load: 3MB per track (in background)
+- Time: ~2s per track
+- Result: Tracks become playable
+
+### File Size Comparison
+
+For a 4-track project:
+
+| Approach | Initial Load | Playable After |
+|----------|-------------|----------------|
+| **Full Audio** | 12 MB | 12 MB loaded (~8s) |
+| **With Peaks** | 200 KB | 200 KB loaded (&lt;1s) |
+| **Savings** | **98% smaller** | **Instant waveforms** |
+
+### Generating Peaks Files
+
+Use the BBC `audiowaveform` tool:
+
+```bash
+# Install audiowaveform
+sudo apt-get install audiowaveform  # Linux
+brew install audiowaveform          # macOS
+
+# Generate 8-bit peaks at 30 samples/pixel
+audiowaveform -i audio.mp3 -o audio.dat -b 8 -z 30
+
+# Options:
+#   -b 8   : 8-bit peaks (smaller files)
+#   -b 16  : 16-bit peaks (higher precision)
+#   -z 30  : 30 samples per pixel (good for overview)
+#   -z 256 : 256 samples per pixel (more detail)
+```
+
+<Tip>
+  Use 8-bit peaks for overview waveforms and 16-bit for detailed zoomed views. The library automatically scales peaks to match the current zoom level.
+</Tip>
+
+### Metadata Extraction
+
+Get audio metadata from peaks file:
+
+```tsx
+import { getWaveformDataMetadata } from '@waveform-playlist/browser';
+
+const metadata = await getWaveformDataMetadata('/audio.dat');
+
+// Returns:
+// {
+//   channels: 1,                // Mono or stereo
+//   duration: 53.24,            // Duration in seconds
+//   samplesPerPixel: 30,        // Resolution
+// }
+```
+
+This is useful for calculating track lengths before loading audio.
+
+### Multi-Channel Support
+
+Extract peaks for stereo files:
+
+```tsx
+const waveformData = await loadWaveformData('/stereo.dat');
+
+// Left channel
+const leftPeaks = waveformDataToPeaks(waveformData, 0);
+
+// Right channel
+const rightPeaks = waveformDataToPeaks(waveformData, 1);
+```
+
+### Real-Time Progress
+
+Show loading progress:
+
+```tsx
+const { tracks, loading, loadedCount, totalCount } = useAudioTracks(
+  audioConfigs,
+  { progressive: true }
+);
+
+{loading && (
+  <div>
+    Loading audio: {loadedCount}/{totalCount} tracks
+    ({Math.round((loadedCount / totalCount) * 100)}%)
+  </div>
+)}
+```
+
+## Performance Benefits
+
+### Initial Page Load
+
+**Without peaks:**
+```
+1. Load 12 MB audio
+2. Decode audio (CPU intensive)
+3. Generate waveforms
+4. Render UI
+⏱️ Total: 8-10 seconds
+```
+
+**With peaks:**
+```
+1. Load 200 KB peaks  ← 98% smaller!
+2. Render waveforms
+3. Show UI           ← User can see/interact
+4. Load audio in background
+⏱️ Visible: <1 second
+⏱️ Playable: 2-3 seconds
+```
+
+### Network Usage
+
+```
+Audio:  280 KB × 4 tracks = 1,120 KB
+Peaks:   55 KB × 4 tracks =   220 KB
+
+Savings: 900 KB (80% reduction)
+```
+
+Plus peaks load in parallel for sub-second total time.
+
+## Use Cases
+
+**Perfect for:**
+- Multi-track projects with many files
+- Mobile users on slow connections
+- Podcast/audiobook players
+- Music production DAWs
+- Audio annotation tools
+
+**Skip if:**
+- Single short audio file (&lt;30s)
+- Audio already loaded/cached
+- Real-time recording (no pre-computed peaks)
+
+## Source Code
+
+View the complete source code:
+- **Example component:** `website/src/components/examples/WaveformDataExample.tsx`
+- **Waveform data utils:** `packages/browser/src/waveform-data.ts`
+- **E2E tests:** `e2e/waveform-data.spec.ts`
+
+## Related
+
+- [Loading Audio Guide](/guides/loading-audio)
+- [Progressive Loading](/guides/loading-audio#progressive-loading)
+- [useAudioTracks Hook](/api/hooks/audio-tracks)
+- [BBC audiowaveform](https://github.com/bbc/audiowaveform)
+- [waveform-data.js](https://github.com/bbc/waveform-data.js)

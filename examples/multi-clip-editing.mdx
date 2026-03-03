@@ -1,0 +1,290 @@
+---
+title: Multi-Clip Editing
+description: Drag-and-drop clip editing with trim handles, collision detection, and clip splitting
+---
+
+# Multi-Clip Editing
+
+The multi-clip example demonstrates advanced clip editing with drag-and-drop repositioning, trim handles, collision detection, and keyboard-based clip splitting.
+
+[View Live Demo →](https://naomiaro.github.io/waveform-playlist/examples/multi-clip)
+
+## What It Demonstrates
+
+- **Drag-to-move clips** - Drag clip headers to reposition on timeline
+- **Trim handles** - Adjust clip start/end boundaries by dragging edges
+- **Collision detection** - Clips snap and prevent overlap
+- **Clip splitting** - Press 'S' to split clip at playhead
+- **Gap handling** - Multiple clips per track with gaps
+- **Progressive loading** - Tracks appear as audio files load
+
+## Complete Example
+
+```tsx
+import React, { useState } from 'react';
+import { DndContext } from '@dnd-kit/core';
+import { restrictToHorizontalAxis } from '@dnd-kit/modifiers';
+import {
+  WaveformPlaylistProvider,
+  Waveform,
+  usePlaylistData,
+  usePlaylistControls,
+  useClipDragHandlers,
+  useDragSensors,
+  useClipSplitting,
+  usePlaybackShortcuts,
+  PlayButton,
+  PauseButton,
+  StopButton,
+} from '@waveform-playlist/browser';
+import { createTrack, createClipFromSeconds } from '@waveform-playlist/core';
+
+// Track configuration with multiple clips showing gaps
+const trackConfigs = [
+  {
+    name: 'Kick',
+    clips: [
+      { fileId: 'kick', startTime: 0, duration: 8, offset: 0 },
+      { fileId: 'kick', startTime: 12, duration: 8, offset: 8 }, // Gap from 8-12s
+    ],
+  },
+  {
+    name: 'HiHat',
+    clips: [
+      { fileId: 'hihat', startTime: 4, duration: 12, offset: 4 },
+    ],
+  },
+  // ... more tracks
+];
+
+function PlaylistWithDrag({ tracks, onTracksChange }) {
+  const { samplesPerPixel, sampleRate, playoutRef, isDraggingRef } = usePlaylistData();
+  const { setSelectedTrackId } = usePlaylistControls();
+
+  // Configure drag sensors
+  const sensors = useDragSensors();
+  
+  // Set up clip drag handlers
+  const { onDragStart, onDragMove, onDragEnd, onDragCancel, collisionModifier } = 
+    useClipDragHandlers({
+      tracks,
+      onTracksChange,
+      samplesPerPixel,
+      sampleRate,
+      engineRef: playoutRef,
+      isDraggingRef,
+    });
+
+  // Enable clip splitting
+  const { splitClipAtPlayhead } = useClipSplitting({
+    tracks,
+    sampleRate,
+    samplesPerPixel,
+    engineRef: playoutRef,
+  });
+
+  // Add split shortcut
+  usePlaybackShortcuts({
+    additionalShortcuts: [
+      {
+        key: 's',
+        action: splitClipAtPlayhead,
+        description: 'Split clip at playhead',
+        preventDefault: true,
+      },
+    ],
+  });
+
+  return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={onDragStart}
+      onDragMove={onDragMove}
+      onDragEnd={onDragEnd}
+      onDragCancel={onDragCancel}
+      modifiers={[restrictToHorizontalAxis, collisionModifier]}
+    >
+      <PlayButton />
+      <PauseButton />
+      <StopButton />
+      
+      <Waveform showClipHeaders interactiveClips />
+    </DndContext>
+  );
+}
+
+export function MultiClipExample() {
+  const [tracks, setTracks] = useState([]);
+
+  // Load audio files and build tracks...
+
+  return (
+    <WaveformPlaylistProvider
+      tracks={tracks}
+      onTracksChange={setTracks}
+      samplesPerPixel={1024}
+      mono
+      waveHeight={100}
+      automaticScroll={true}
+      controls={{ show: true, width: 200 }}
+      timescale
+    >
+      <PlaylistWithDrag tracks={tracks} onTracksChange={setTracks} />
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+## Key Features
+
+### Drag-and-Drop Setup
+
+Integrate with `@dnd-kit` for clip dragging:
+
+```tsx
+import { DndContext } from '@dnd-kit/core';
+import { restrictToHorizontalAxis } from '@dnd-kit/modifiers';
+import { useClipDragHandlers, useDragSensors } from '@waveform-playlist/browser';
+
+const sensors = useDragSensors();
+const { onDragStart, onDragMove, onDragEnd, collisionModifier } = 
+  useClipDragHandlers({
+    tracks,
+    onTracksChange,
+    samplesPerPixel,
+    sampleRate,
+  });
+
+<DndContext
+  sensors={sensors}
+  onDragStart={onDragStart}
+  onDragMove={onDragMove}
+  onDragEnd={onDragEnd}
+  modifiers={[restrictToHorizontalAxis, collisionModifier]}
+>
+  <Waveform showClipHeaders interactiveClips />
+</DndContext>
+```
+
+<Note>
+  The `collisionModifier` prevents clips from overlapping during drag operations. It snaps clips to adjacent clip boundaries and track edges.
+</Note>
+
+### Interactive Clips
+
+Enable clip headers and trim handles:
+
+```tsx
+<Waveform 
+  showClipHeaders      // Show draggable clip name headers
+  interactiveClips     // Enable trim handles on clip edges
+/>
+```
+
+**Clip headers:**
+- Display clip name and time range
+- Draggable to reposition clip
+- Click to select track
+
+**Trim handles:**
+- Left edge: Adjust clip start (offset into audio)
+- Right edge: Adjust clip duration
+- Show `col-resize` cursor on hover
+
+### Clip Splitting
+
+Split clips at the playhead position:
+
+```tsx
+import { useClipSplitting } from '@waveform-playlist/browser';
+
+const { splitClipAtPlayhead } = useClipSplitting({
+  tracks,
+  sampleRate,
+  samplesPerPixel,
+  engineRef: playoutRef,
+});
+
+// Add to keyboard shortcuts
+usePlaybackShortcuts({
+  additionalShortcuts: [
+    {
+      key: 's',
+      action: splitClipAtPlayhead,
+      description: 'Split clip at playhead',
+    },
+  ],
+});
+```
+
+<Tip>
+  Splitting works during playback! The engine seamlessly switches to the new clip instances without interrupting audio.
+</Tip>
+
+### Creating Clips with Gaps
+
+Use `createClipFromSeconds` to position clips with gaps:
+
+```tsx
+import { createTrack, createClipFromSeconds } from '@waveform-playlist/core';
+
+const clip1 = createClipFromSeconds({
+  audioBuffer,
+  startTime: 0,      // Starts at 0s on timeline
+  duration: 8,       // 8 seconds long
+  offset: 0,         // Start from beginning of audio file
+  name: 'Kick 0-8s',
+});
+
+const clip2 = createClipFromSeconds({
+  audioBuffer,
+  startTime: 12,     // Starts at 12s (4s gap after clip1)
+  duration: 8,
+  offset: 8,         // Use seconds 8-16 from audio file
+  name: 'Kick 12-20s',
+});
+
+const track = createTrack({
+  name: 'Kick',
+  clips: [clip1, clip2],
+});
+```
+
+### Collision Detection
+
+The `collisionModifier` from `useClipDragHandlers` prevents overlaps:
+
+```tsx
+const { collisionModifier } = useClipDragHandlers({ ... });
+
+<DndContext modifiers={[restrictToHorizontalAxis, collisionModifier]}>
+  {/* Clips can't overlap - they snap to boundaries */}
+</DndContext>
+```
+
+**Behavior:**
+- Clips snap to adjacent clip edges
+- Cannot drag past track start (0)
+- Visual feedback during collision
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| **Space** | Play/pause |
+| **Escape** | Stop |
+| **0** | Rewind to start |
+| **S** | Split clip at playhead (on selected track) |
+
+## Source Code
+
+View the complete source code:
+- **Example component:** `website/src/components/examples/MultiClipExample.tsx`
+- **E2E tests:** `e2e/multi-clip.spec.ts`
+
+## Related
+
+- [Clip Editing Guide](/guides/multi-track-editing)
+- [useClipDragHandlers Hook](/api/hooks/playback)
+- [useClipSplitting Hook](/api/hooks/playback)
+- [Waveform Component](/api/components/waveform)

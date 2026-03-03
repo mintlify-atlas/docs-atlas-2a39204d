@@ -1,0 +1,316 @@
+---
+title: Audio Effects
+description: 20 Tone.js effects with real-time parameter control and visual frequency analyzer
+---
+
+# Audio Effects
+
+The audio effects example demonstrates the full effects processing capabilities with 20 different Tone.js effects, real-time parameter controls, and a live frequency visualizer.
+
+[View Live Demo →](https://naomiaro.github.io/waveform-playlist/examples/effects)
+
+## What It Demonstrates
+
+- **Master effects chain** - Global effects applied to the mix
+- **Per-track effects** - Independent effect chains per track
+- **20 Tone.js effects** - Reverb, delay, filters, distortion, and more
+- **Real-time parameter control** - Adjust effect parameters during playback
+- **Frequency visualizer** - Live FFT analysis with industrial Berlin aesthetic
+- **Drag-and-drop tracks** - Add your own audio files
+- **Export with effects** - Render effects offline for WAV export
+
+## Complete Example
+
+```tsx
+import React, { useState } from 'react';
+import {
+  WaveformPlaylistProvider,
+  Waveform,
+  PlayButton,
+  PauseButton,
+  useDynamicEffects,
+  useTrackDynamicEffects,
+  useAudioTracks,
+} from '@waveform-playlist/browser';
+
+const audioConfigs = [
+  { src: '/audio/kick.opus', name: 'Kick' },
+  { src: '/audio/bass.opus', name: 'Bass' },
+  { src: '/audio/synth.opus', name: 'Synth' },
+];
+
+export function EffectsExample() {
+  const [tracks, setTracks] = useState([]);
+
+  // Master effects manager
+  const effectsManager = useDynamicEffects(256); // FFT size for analyzer
+  const { analyserRef, masterEffects, addEffect, createOfflineEffectsFunction } = 
+    effectsManager;
+
+  // Track effects manager
+  const trackEffectsManager = useTrackDynamicEffects();
+  const { addEffectToTrack, getTrackEffectsFunction } = trackEffectsManager;
+
+  // Load audio tracks
+  const { tracks: loadedTracks, loading } = useAudioTracks(audioConfigs, {
+    progressive: true,
+  });
+
+  // Add default effects on mount
+  React.useEffect(() => {
+    if (!loading && loadedTracks.length > 0) {
+      // Master reverb
+      addEffect('reverb');
+
+      // Per-track effects
+      addEffectToTrack(loadedTracks[0].id, 'compressor'); // Kick
+      addEffectToTrack(loadedTracks[1].id, 'distortion'); // Bass
+      addEffectToTrack(loadedTracks[2].id, 'pingPongDelay'); // Synth
+    }
+  }, [loading, loadedTracks]);
+
+  // Attach effects functions to tracks
+  const tracksWithEffects = React.useMemo(() => {
+    return loadedTracks.map(track => ({
+      ...track,
+      effects: getTrackEffectsFunction(track.id),
+    }));
+  }, [loadedTracks, getTrackEffectsFunction]);
+
+  return (
+    <>
+      {/* Effect rack UI (add/remove effects, adjust parameters) */}
+      <EffectRack effectsManager={effectsManager} />
+
+      {/* Frequency visualizer */}
+      <FrequencyVisualizer analyserRef={analyserRef} />
+
+      <WaveformPlaylistProvider
+        tracks={tracksWithEffects}
+        effects={masterEffects}  // Master effects chain
+        samplesPerPixel={512}
+        waveHeight={100}
+      >
+        <PlayButton />
+        <PauseButton />
+        <Waveform />
+      </WaveformPlaylistProvider>
+    </>
+  );
+}
+```
+
+## Key Features
+
+### Master Effects Chain
+
+Apply effects to the entire mix using `useDynamicEffects`:
+
+```tsx
+import { useDynamicEffects } from '@waveform-playlist/browser';
+
+const { masterEffects, addEffect, removeEffect, updateEffectParam } = 
+  useDynamicEffects(256); // FFT size for analyzer
+
+// Add effects
+addEffect('reverb');
+addEffect('delay');
+
+// Update parameters
+updateEffectParam('reverb-0', 'decay', 5.0);
+updateEffectParam('reverb-0', 'wet', 0.3);
+
+// Pass to provider
+<WaveformPlaylistProvider effects={masterEffects} ...>
+```
+
+<Note>
+  The master effects chain processes audio after all tracks are mixed together. Effects run in the order they were added.
+</Note>
+
+### Per-Track Effects
+
+Apply independent effects to each track:
+
+```tsx
+import { useTrackDynamicEffects } from '@waveform-playlist/browser';
+
+const { addEffectToTrack, getTrackEffectsFunction, updateTrackEffectParam } = 
+  useTrackDynamicEffects();
+
+// Add effects to specific tracks
+addEffectToTrack('track-1', 'compressor');
+addEffectToTrack('track-2', 'distortion');
+addEffectToTrack('track-2', 'reverb'); // Multiple effects per track
+
+// Update track effect parameters
+updateTrackEffectParam('track-2', 'distortion-0', 'distortion', 0.8);
+
+// Attach to tracks
+const tracksWithEffects = tracks.map(track => ({
+  ...track,
+  effects: getTrackEffectsFunction(track.id),
+}));
+
+<WaveformPlaylistProvider tracks={tracksWithEffects} ...>
+```
+
+### Available Effects
+
+20 Tone.js effects are available:
+
+**Reverb & Delay:**
+- `reverb` - Algorithmic reverb
+- `convolverReverb` - Convolution reverb
+- `delay` - Simple delay
+- `pingPongDelay` - Stereo ping-pong delay
+- `feedbackDelay` - Feedback delay
+
+**Filters:**
+- `lowpass` - Low-pass filter
+- `highpass` - High-pass filter
+- `bandpass` - Band-pass filter
+- `notch` - Notch filter
+- `allpass` - All-pass filter
+- `eq3` - 3-band EQ
+
+**Distortion & Dynamics:**
+- `distortion` - Waveshaping distortion
+- `overdrive` - Soft clipping overdrive
+- `bitcrusher` - Lo-fi bit reduction
+- `compressor` - Dynamic range compression
+- `limiter` - Peak limiting
+
+**Modulation:**
+- `chorus` - Chorus effect
+- `phaser` - Phaser
+- `tremolo` - Amplitude modulation
+- `vibrato` - Pitch modulation
+
+### Frequency Visualizer
+
+Display real-time frequency analysis:
+
+```tsx
+import { useDynamicEffects } from '@waveform-playlist/browser';
+
+const { analyserRef } = useDynamicEffects(256);
+
+function FrequencyVisualizer({ analyserRef }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!canvasRef.current || !analyserRef.current) return;
+
+    const canvas = canvasRef.current;
+    const canvasCtx = canvas.getContext('2d');
+    let animationId: number;
+
+    const draw = () => {
+      animationId = requestAnimationFrame(draw);
+
+      // Get FFT data from Tone.js Analyser
+      const dataArray = analyserRef.current.getValue();
+      const bufferLength = dataArray.length;
+
+      // Clear canvas
+      canvasCtx.fillStyle = '#0d0d0d';
+      canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw frequency bars
+      const barWidth = (canvas.width / bufferLength) * 2.5;
+      let x = 0;
+
+      for (let i = 0; i < bufferLength; i++) {
+        // Normalize dB values (-100 to 0) to 0-1 range
+        const normalized = Math.max(0, (dataArray[i] + 100) / 100);
+        const barHeight = normalized * canvas.height;
+
+        canvasCtx.fillStyle = '#63C75F'; // Berlin green
+        canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+
+        x += barWidth + 1;
+      }
+    };
+
+    draw();
+    return () => cancelAnimationFrame(animationId);
+  }, [analyserRef]);
+
+  return <canvas ref={canvasRef} width={1000} height={120} />;
+}
+```
+
+### Export with Effects
+
+Render effects offline when exporting WAV files:
+
+```tsx
+import { ExportWavButton } from '@waveform-playlist/browser';
+
+const { createOfflineEffectsFunction } = useDynamicEffects();
+const offlineEffects = createOfflineEffectsFunction();
+
+<ExportWavButton
+  filename="mix-with-effects"
+  mode="master"
+  applyEffects={true}
+  effectsFunction={offlineEffects}
+/>
+```
+
+<Tip>
+  Offline rendering uses `OfflineAudioContext` to process effects without real-time constraints, ensuring perfect quality exports.
+</Tip>
+
+### Effect Parameters
+
+Each effect has adjustable parameters. Example for reverb:
+
+```tsx
+updateEffectParam('reverb-0', 'decay', 5.0);      // Decay time in seconds
+updateEffectParam('reverb-0', 'preDelay', 0.01);  // Pre-delay in seconds
+updateEffectParam('reverb-0', 'wet', 0.3);        // Dry/wet mix (0-1)
+```
+
+See the **EffectRack** component in the source for all available parameters per effect type.
+
+## Drag-and-Drop Tracks
+
+Add your own audio files by dragging them into the drop zone:
+
+```tsx
+const handleDrop = async (e: React.DragEvent) => {
+  const files = Array.from(e.dataTransfer.files).filter(f => 
+    f.type.startsWith('audio/')
+  );
+
+  const audioContext = new AudioContext();
+  
+  for (const file of files) {
+    const arrayBuffer = await file.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+    const track = createTrack({
+      name: file.name,
+      clips: [createClipFromSeconds({ audioBuffer, startTime: 0 })],
+    });
+
+    setTracks(prev => [...prev, track]);
+  }
+};
+```
+
+## Source Code
+
+View the complete source code:
+- **Example component:** `website/src/components/examples/EffectsExample.tsx`
+- **Effect rack UI:** `website/src/components/effects/EffectRack.tsx`
+- **E2E tests:** `e2e/effects.spec.ts`
+
+## Related
+
+- [Audio Effects Guide](/guides/audio-effects)
+- [useDynamicEffects Hook](/api/hooks/effects)
+- [useTrackDynamicEffects Hook](/api/hooks/effects)
+- [Exporting Audio](/guides/export-wav)

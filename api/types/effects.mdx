@@ -1,0 +1,526 @@
+---
+title: Effects Types
+description: Type definitions for audio effects processing
+---
+
+## Overview
+
+Waveform Playlist provides comprehensive audio effects support through Tone.js, including 20 built-in effects organized into 7 categories:
+
+- **Reverb** (3): Reverb, Freeverb, JC Reverb
+- **Delay** (2): Feedback Delay, Ping Pong Delay
+- **Modulation** (5): Chorus, Phaser, Tremolo, Vibrato, Auto Panner
+- **Filter** (3): Auto Filter, Auto Wah, 3-Band EQ
+- **Distortion** (3): Distortion, Bit Crusher, Chebyshev
+- **Dynamics** (3): Compressor, Limiter, Gate
+- **Spatial** (1): Stereo Widener
+
+---
+
+## TrackEffectsFunction
+
+A function type for track-level audio processing. Effects are inserted into the audio graph between the track output and the master destination.
+
+### Import
+
+```typescript
+import type { TrackEffectsFunction } from '@waveform-playlist/core';
+```
+
+### Type Definition
+
+```typescript
+type TrackEffectsFunction = (
+  graphEnd: unknown,
+  destination: unknown,
+  isOffline: boolean
+) => void | (() => void);
+```
+
+### Parameters
+
+<ResponseField name="graphEnd" type="unknown" required>
+  The end of the track's audio graph (Tone.js Gain node). Connect your effects chain input to this node.
+</ResponseField>
+
+<ResponseField name="destination" type="unknown" required>
+  Where to connect the effects output (Tone.js ToneAudioNode). This is typically the master volume or next stage in the audio graph.
+</ResponseField>
+
+<ResponseField name="isOffline" type="boolean" required>
+  Whether rendering offline (for export). Use this to optimize effects for offline rendering vs. real-time playback.
+</ResponseField>
+
+### Return Value
+
+Optionally return a cleanup function that will be called when the track is disposed.
+
+### Example
+
+```typescript
+import { Reverb } from 'tone';
+import type { TrackEffectsFunction } from '@waveform-playlist/core';
+
+const trackEffects: TrackEffectsFunction = (graphEnd, destination, isOffline) => {
+  const reverb = new Reverb({ decay: 1.5, wet: 0.5 });
+  
+  graphEnd.connect(reverb);
+  reverb.connect(destination);
+
+  // Return cleanup function
+  return () => {
+    reverb.dispose();
+  };
+};
+```
+
+---
+
+## EffectsFunction
+
+A function type for master-level audio processing. Applied to the master output after all tracks are mixed.
+
+### Import
+
+```typescript
+import type { EffectsFunction } from '@waveform-playlist/playout';
+```
+
+### Type Definition
+
+```typescript
+type EffectsFunction = (
+  masterGainNode: Volume,
+  destination: ToneAudioNode,
+  isOffline: boolean
+) => void | (() => void);
+```
+
+### Parameters
+
+<ResponseField name="masterGainNode" type="Volume" required>
+  The master volume node (Tone.js Volume). Connect your effects chain input to this.
+</ResponseField>
+
+<ResponseField name="destination" type="ToneAudioNode" required>
+  The final destination (typically speakers). Connect your effects chain output here.
+</ResponseField>
+
+<ResponseField name="isOffline" type="boolean" required>
+  Whether rendering offline (for WAV export).
+</ResponseField>
+
+### Example
+
+```typescript
+import { Limiter, EQ3 } from 'tone';
+import type { EffectsFunction } from '@waveform-playlist/playout';
+
+const masterEffects: EffectsFunction = (masterGain, destination, isOffline) => {
+  const eq = new EQ3({ low: 2, mid: 0, high: 1 });
+  const limiter = new Limiter(-3);
+  
+  // Chain: master → EQ → limiter → destination
+  masterGain.connect(eq);
+  eq.connect(limiter);
+  limiter.connect(destination);
+
+  // Cleanup
+  return () => {
+    eq.dispose();
+    limiter.dispose();
+  };
+};
+```
+
+---
+
+## EffectDefinition
+
+Defines the metadata and parameters for an audio effect.
+
+### Import
+
+```typescript
+import type { EffectDefinition } from '@waveform-playlist/browser';
+```
+
+### Type Definition
+
+```typescript
+interface EffectDefinition {
+  id: string;
+  name: string;
+  category: 'delay' | 'reverb' | 'modulation' | 'distortion' | 'filter' | 'dynamics' | 'spatial';
+  description: string;
+  parameters: EffectParameter[];
+}
+```
+
+### Properties
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for the effect (e.g., 'reverb', 'chorus', 'eq3')
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Display name for the effect (e.g., 'Reverb', 'Chorus', '3-Band EQ')
+</ResponseField>
+
+<ResponseField name="category" type="string" required>
+  Category of the effect: `'delay'`, `'reverb'`, `'modulation'`, `'distortion'`, `'filter'`, `'dynamics'`, or `'spatial'`
+</ResponseField>
+
+<ResponseField name="description" type="string" required>
+  Human-readable description of what the effect does
+</ResponseField>
+
+<ResponseField name="parameters" type="EffectParameter[]" required>
+  Array of configurable parameters for this effect
+</ResponseField>
+
+---
+
+## EffectParameter
+
+Defines a single parameter for an audio effect.
+
+### Type Definition
+
+```typescript
+interface EffectParameter {
+  name: string;
+  label: string;
+  type: 'number' | 'select' | 'boolean';
+  min?: number;
+  max?: number;
+  step?: number;
+  default: number | string | boolean;
+  unit?: string;
+  options?: { value: string | number; label: string }[];
+}
+```
+
+### Properties
+
+<ResponseField name="name" type="string" required>
+  Parameter identifier (e.g., 'decay', 'wet', 'frequency')
+</ResponseField>
+
+<ResponseField name="label" type="string" required>
+  Display label for UI (e.g., 'Decay', 'Mix', 'Rate')
+</ResponseField>
+
+<ResponseField name="type" type="ParameterType" required>
+  Type of parameter: `'number'`, `'select'`, or `'boolean'`
+</ResponseField>
+
+<ResponseField name="min" type="number">
+  Minimum value (for number type)
+</ResponseField>
+
+<ResponseField name="max" type="number">
+  Maximum value (for number type)
+</ResponseField>
+
+<ResponseField name="step" type="number">
+  Step increment (for number type)
+</ResponseField>
+
+<ResponseField name="default" type="number | string | boolean" required>
+  Default value for this parameter
+</ResponseField>
+
+<ResponseField name="unit" type="string">
+  Display unit (e.g., 's', 'Hz', 'dB')
+</ResponseField>
+
+<ResponseField name="options" type="array">
+  Available options for select type parameters
+</ResponseField>
+
+### Example
+
+```typescript
+const reverbDefinition: EffectDefinition = {
+  id: 'reverb',
+  name: 'Reverb',
+  category: 'reverb',
+  description: 'Simple convolution reverb with adjustable decay time',
+  parameters: [
+    {
+      name: 'decay',
+      label: 'Decay',
+      type: 'number',
+      min: 0.1,
+      max: 10,
+      step: 0.1,
+      default: 1.5,
+      unit: 's',
+    },
+    {
+      name: 'wet',
+      label: 'Mix',
+      type: 'number',
+      min: 0,
+      max: 1,
+      step: 0.01,
+      default: 0.5
+    },
+  ],
+};
+```
+
+---
+
+## ActiveEffect
+
+Represents an active effect instance in the effects chain.
+
+### Import
+
+```typescript
+import type { ActiveEffect } from '@waveform-playlist/browser';
+```
+
+### Type Definition
+
+```typescript
+interface ActiveEffect {
+  instanceId: string;
+  effectId: string;
+  definition: EffectDefinition;
+  params: Record<string, number | string | boolean>;
+  bypassed: boolean;
+}
+```
+
+### Properties
+
+<ResponseField name="instanceId" type="string" required>
+  Unique identifier for this effect instance (allows multiple instances of the same effect)
+</ResponseField>
+
+<ResponseField name="effectId" type="string" required>
+  The effect type ID (e.g., 'reverb', 'chorus')
+</ResponseField>
+
+<ResponseField name="definition" type="EffectDefinition" required>
+  Complete effect definition with metadata and parameter specs
+</ResponseField>
+
+<ResponseField name="params" type="Record<string, number | string | boolean>" required>
+  Current parameter values for this instance
+</ResponseField>
+
+<ResponseField name="bypassed" type="boolean" required>
+  Whether this effect is bypassed (signal passes through without processing)
+</ResponseField>
+
+---
+
+## EffectInstance
+
+Low-level interface for an effect instance with audio graph methods.
+
+### Import
+
+```typescript
+import type { EffectInstance } from '@waveform-playlist/browser';
+```
+
+### Type Definition
+
+```typescript
+interface EffectInstance {
+  effect: ToneAudioNode;
+  id: string;
+  instanceId: string;
+  dispose: () => void;
+  setParameter: (name: string, value: number | string | boolean) => void;
+  getParameter: (name: string) => number | string | boolean | undefined;
+  connect: (destination: InputNode) => void;
+  disconnect: () => void;
+}
+```
+
+### Properties
+
+<ResponseField name="effect" type="ToneAudioNode" required>
+  The Tone.js audio node for this effect
+</ResponseField>
+
+<ResponseField name="id" type="string" required>
+  Effect type ID
+</ResponseField>
+
+<ResponseField name="instanceId" type="string" required>
+  Unique instance identifier
+</ResponseField>
+
+<ResponseField name="dispose" type="() => void" required>
+  Cleanup function to dispose of the effect and free resources
+</ResponseField>
+
+<ResponseField name="setParameter" type="function" required>
+  Update a parameter value in real-time
+</ResponseField>
+
+<ResponseField name="getParameter" type="function" required>
+  Get current parameter value
+</ResponseField>
+
+<ResponseField name="connect" type="function" required>
+  Connect effect output to destination
+</ResponseField>
+
+<ResponseField name="disconnect" type="function" required>
+  Disconnect effect from all outputs
+</ResponseField>
+
+---
+
+## Built-in Effects
+
+Access the catalog of built-in effects.
+
+### Import
+
+```typescript
+import { 
+  effectDefinitions, 
+  getEffectDefinition,
+  getEffectsByCategory 
+} from '@waveform-playlist/browser';
+```
+
+### effectDefinitions
+
+Array of all available effect definitions.
+
+```typescript
+const effectDefinitions: EffectDefinition[];
+```
+
+### getEffectDefinition
+
+Get a specific effect definition by ID.
+
+```typescript
+function getEffectDefinition(id: string): EffectDefinition | undefined
+```
+
+**Example:**
+```typescript
+const reverbDef = getEffectDefinition('reverb');
+if (reverbDef) {
+  console.log(reverbDef.description);
+  console.log(reverbDef.parameters);
+}
+```
+
+### getEffectsByCategory
+
+Get all effects in a specific category.
+
+```typescript
+function getEffectsByCategory(
+  category: 'delay' | 'reverb' | 'modulation' | 'distortion' | 'filter' | 'dynamics' | 'spatial'
+): EffectDefinition[]
+```
+
+**Example:**
+```typescript
+const reverbEffects = getEffectsByCategory('reverb');
+// Returns: [Reverb, Freeverb, JC Reverb]
+
+const modulationEffects = getEffectsByCategory('modulation');
+// Returns: [Chorus, Phaser, Tremolo, Vibrato, Auto Panner]
+```
+
+---
+
+## Effect Categories
+
+All available effect categories with display names.
+
+```typescript
+import { effectCategories } from '@waveform-playlist/browser';
+
+const effectCategories: { 
+  id: EffectDefinition['category']; 
+  name: string 
+}[] = [
+  { id: 'reverb', name: 'Reverb' },
+  { id: 'delay', name: 'Delay' },
+  { id: 'modulation', name: 'Modulation' },
+  { id: 'filter', name: 'Filter' },
+  { id: 'distortion', name: 'Distortion' },
+  { id: 'dynamics', name: 'Dynamics' },
+  { id: 'spatial', name: 'Spatial' },
+];
+```
+
+---
+
+## Usage Examples
+
+### Static Effect Chain
+
+```typescript
+import { Reverb, Chorus } from 'tone';
+import type { TrackEffectsFunction } from '@waveform-playlist/core';
+
+const myTrackEffects: TrackEffectsFunction = (graphEnd, destination) => {
+  const chorus = new Chorus({ frequency: 1.5, depth: 0.7, wet: 0.3 });
+  const reverb = new Reverb({ decay: 2.5, wet: 0.4 });
+  
+  // Chain: track → chorus → reverb → destination
+  graphEnd.connect(chorus);
+  chorus.connect(reverb);
+  reverb.connect(destination);
+
+  return () => {
+    chorus.dispose();
+    reverb.dispose();
+  };
+};
+
+const track = createTrack({
+  name: 'Guitar',
+  effects: myTrackEffects
+});
+```
+
+### Dynamic Effects with useDynamicEffects
+
+For runtime parameter control and effect chain management, use the `useDynamicEffects` or `useTrackDynamicEffects` hooks from `@waveform-playlist/browser`. See [Effects Guide](/guides/audio-effects) for details.
+
+```typescript
+import { useDynamicEffects } from '@waveform-playlist/browser';
+
+const {
+  activeEffects,
+  addEffect,
+  updateParameter,
+  masterEffects
+} = useDynamicEffects();
+
+// Add an effect
+addEffect('reverb');
+
+// Update parameter in real-time
+updateParameter(instanceId, 'decay', 3.0);
+
+// Pass to provider
+<WaveformPlaylistProvider masterEffects={masterEffects}>
+  {/* ... */}
+</WaveformPlaylistProvider>
+```
+
+---
+
+## Related Types
+
+- [Track Types](/api/types/tracks) - ClipTrack interface with effects property
+- [Hooks Reference](/api/hooks/effects) - useDynamicEffects and useTrackDynamicEffects

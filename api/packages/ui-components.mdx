@@ -1,0 +1,407 @@
+---
+title: '@waveform-playlist/ui-components'
+description: 'React UI components for waveform visualization'
+---
+
+# @waveform-playlist/ui-components
+
+The UI components package provides low-level React components for waveform visualization, track controls, and playlist UI elements. These components are used by the browser package but can also be used independently for custom implementations.
+
+## Installation
+
+```bash
+npm install @waveform-playlist/ui-components react react-dom styled-components
+```
+
+### Peer Dependencies
+
+<ParamField path="react" type="string" required>
+  React 17.0.0 or later
+</ParamField>
+
+<ParamField path="react-dom" type="string" required>
+  React DOM 17.0.0 or later
+</ParamField>
+
+<ParamField path="styled-components" type="string" required>
+  Styled Components 5.0.0 or later
+</ParamField>
+
+### Optional Peer Dependencies
+
+<ParamField path="@dnd-kit/core" type="string">
+  DnD Kit 6.0.0+ for drag-and-drop (only needed if using Clip/Track components)
+</ParamField>
+
+<ParamField path="@dnd-kit/modifiers" type="string">
+  DnD Kit modifiers 9.0.0+
+</ParamField>
+
+<ParamField path="@dnd-kit/utilities" type="string">
+  DnD Kit utilities 3.0.0+
+</ParamField>
+
+## Main Exports
+
+### Components
+
+#### Waveform Visualization
+
+<ParamField path="Channel" type="component">
+  Canvas-based waveform channel renderer with virtual scrolling
+</ParamField>
+
+<ParamField path="SmartChannel" type="component">
+  Intelligent channel that switches between canvas rendering and loading states
+</ParamField>
+
+<ParamField path="SpectrogramChannel" type="component">
+  FFT-based spectrogram visualization with Web Worker processing
+</ParamField>
+
+<ParamField path="TimeScale" type="component">
+  Horizontal time ruler with configurable format (seconds, hh:mm:ss, samples)
+</ParamField>
+
+<ParamField path="SmartScale" type="component">
+  Adaptive time scale that adjusts tick density based on zoom level
+</ParamField>
+
+<ParamField path="SpectrogramLabels" type="component">
+  Vertical frequency labels for spectrogram (Hz, kHz)
+</ParamField>
+
+#### Track & Clip Components
+
+<ParamField path="Track" type="component">
+  Complete track UI with controls, waveform, and interaction handlers
+</ParamField>
+
+<ParamField path="Clip" type="component">
+  Audio clip with waveform, drag handles, and fade overlays
+</ParamField>
+
+<ParamField path="ClipHeader" type="component">
+  Clip name and color indicator
+</ParamField>
+
+<ParamField path="ClipBoundary" type="component">
+  Draggable boundary handles for clip trimming
+</ParamField>
+
+<ParamField path="FadeOverlay" type="component">
+  Visual fade curve overlay (linear, logarithmic, sCurve, exponential)
+</ParamField>
+
+#### Playlist Layout
+
+<ParamField path="Playlist" type="component">
+  Container with horizontal virtual scrolling and viewport management
+</ParamField>
+
+<ParamField path="Playhead" type="component">
+  Animated playback position indicator
+</ParamField>
+
+<ParamField path="Selection" type="component">
+  Visual selection region overlay
+</ParamField>
+
+<ParamField path="LoopRegion" type="component">
+  Loop region indicator with drag handles
+</ParamField>
+
+#### Controls
+
+<ParamField path="TrackControls" type="namespace">
+  Collection of track control components (Mute, Solo, Volume, Pan, Remove, etc.)
+</ParamField>
+
+<ParamField path="TrackMenu" type="component">
+  Dropdown menu for track actions
+</ParamField>
+
+<ParamField path="MasterVolumeControl" type="component">
+  Master volume slider (0.0-1.0)
+</ParamField>
+
+<ParamField path="TimeFormatSelect" type="component">
+  Time format selector dropdown
+</ParamField>
+
+<ParamField path="AudioPosition" type="component">
+  Current playback time display
+</ParamField>
+
+<ParamField path="SelectionTimeInputs" type="component">
+  Editable selection start/end time inputs
+</ParamField>
+
+<ParamField path="TimeInput" type="component">
+  Generic time input with validation
+</ParamField>
+
+<ParamField path="AutomaticScrollCheckbox" type="component">
+  Toggle automatic scrolling during playback
+</ParamField>
+
+#### Utility
+
+<ParamField path="ErrorBoundary" type="component">
+  React error boundary for graceful error handling
+</ParamField>
+
+### Contexts
+
+<ParamField path="ScrollViewportProvider" type="component">
+  Provides viewport information for horizontal virtual scrolling
+</ParamField>
+
+<ParamField path="useScrollViewport()" type="hook">
+  Access scroll position and visible range: `{ scrollLeft, containerWidth, visibleStart, visibleEnd }`
+</ParamField>
+
+<ParamField path="ClipViewportOriginProvider" type="component">
+  Provides clip's pixel offset for coordinate space conversion
+</ParamField>
+
+<ParamField path="DevicePixelRatioProvider" type="component">
+  Provides device pixel ratio for high-DPI rendering
+</ParamField>
+
+<ParamField path="PlaylistInfoProvider" type="component">
+  Provides playlist metadata (sample rate, samples per pixel)
+</ParamField>
+
+<ParamField path="PlayoutProvider" type="component">
+  Provides playout adapter reference
+</ParamField>
+
+<ParamField path="ThemeProvider" type="component">
+  Styled-components theme provider with waveform-specific theme
+</ParamField>
+
+<ParamField path="TrackControlsProvider" type="component">
+  Provides track control callbacks
+</ParamField>
+
+### Theming
+
+<ParamField path="WaveformPlaylistTheme" type="interface">
+  Complete theme interface with all color and styling properties
+</ParamField>
+
+<ParamField path="defaultTheme" type="object">
+  Default light theme
+</ParamField>
+
+<ParamField path="darkTheme" type="object">
+  Dark theme variant
+</ParamField>
+
+### Utilities
+
+#### Time Formatting
+
+<ParamField path="formatTime(seconds, format)" type="function">
+  Format seconds as string (hh:mm:ss, mm:ss.ms, samples, etc.)
+</ParamField>
+
+<ParamField path="parseTimeToSeconds(input, format, sampleRate)" type="function">
+  Parse time string to seconds
+</ParamField>
+
+<ParamField path="TimeFormat" type="type">
+  Union type: `'seconds' | 'hh:mm:ss' | 'hh:mm:ss.ms' | 'samples'`
+</ParamField>
+
+#### Conversions
+
+<ParamField path="samplesToSeconds(samples, sampleRate)" type="function">
+  Convert sample count to seconds
+</ParamField>
+
+<ParamField path="secondsToSamples(seconds, sampleRate)" type="function">
+  Convert seconds to sample count
+</ParamField>
+
+<ParamField path="samplesToPixels(samples, samplesPerPixel)" type="function">
+  Convert samples to pixels
+</ParamField>
+
+<ParamField path="pixelsToSamples(pixels, samplesPerPixel)" type="function">
+  Convert pixels to samples
+</ParamField>
+
+#### Virtual Scrolling
+
+<ParamField path="useVisibleChunkIndices(totalWidth, chunkWidth, originX?)" type="hook">
+  Get array of visible canvas chunk indices for viewport-aware rendering
+</ParamField>
+
+## Usage Example
+
+### Custom Waveform Visualization
+
+```tsx
+import {
+  Channel,
+  TimeScale,
+  ScrollViewportProvider,
+  PlaylistInfoProvider,
+  DevicePixelRatioProvider,
+  defaultTheme,
+} from '@waveform-playlist/ui-components';
+import { ThemeProvider } from 'styled-components';
+
+function CustomWaveform({ audioBuffer, samplesPerPixel }) {
+  return (
+    <ThemeProvider theme={defaultTheme}>
+      <DevicePixelRatioProvider>
+        <PlaylistInfoProvider
+          sampleRate={audioBuffer.sampleRate}
+          samplesPerPixel={samplesPerPixel}
+        >
+          <ScrollViewportProvider>
+            <TimeScale
+              duration={audioBuffer.duration}
+              samplesPerPixel={samplesPerPixel}
+              sampleRate={audioBuffer.sampleRate}
+            />
+            <Channel
+              audioBuffer={audioBuffer}
+              samplesPerPixel={samplesPerPixel}
+              height={128}
+            />
+          </ScrollViewportProvider>
+        </PlaylistInfoProvider>
+      </DevicePixelRatioProvider>
+    </ThemeProvider>
+  );
+}
+```
+
+### Custom Theme
+
+```tsx
+import {
+  defaultTheme,
+  type WaveformPlaylistTheme,
+} from '@waveform-playlist/ui-components';
+import { ThemeProvider } from 'styled-components';
+
+const customTheme: Partial<WaveformPlaylistTheme> = {
+  ...defaultTheme,
+  waveOutlineColor: '#3b82f6',
+  waveFillColor: '#60a5fa',
+  waveProgressColor: '#1d4ed8',
+  backgroundColor: '#0f172a',
+  playheadColor: '#f59e0b',
+};
+
+function ThemedPlaylist() {
+  return (
+    <ThemeProvider theme={customTheme}>
+      {/* Your components */}
+    </ThemeProvider>
+  );
+}
+```
+
+### Using Spectrogram
+
+```tsx
+import {
+  SpectrogramChannel,
+  SpectrogramLabels,
+} from '@waveform-playlist/ui-components';
+import type { SpectrogramConfig } from '@waveform-playlist/core';
+
+const spectrogramConfig: SpectrogramConfig = {
+  fftSize: 2048,
+  hopSize: 512,
+  windowFunction: 'hann',
+  frequencyScale: 'linear',
+  minFrequency: 0,
+  maxFrequency: 22050,
+};
+
+function Spectrogram({ audioBuffer }) {
+  return (
+    <div style={{ display: 'flex' }}>
+      <SpectrogramLabels
+        config={spectrogramConfig}
+        height={256}
+      />
+      <SpectrogramChannel
+        audioBuffer={audioBuffer}
+        config={spectrogramConfig}
+        colorMap="viridis"
+        height={256}
+      />
+    </div>
+  );
+}
+```
+
+## Key Features
+
+### Horizontal Virtual Scrolling
+
+For performance with long audio files, waveforms are rendered in 1000px canvas chunks. Only visible chunks (plus buffer) are mounted:
+
+- `ScrollViewportProvider` tracks scroll position
+- `useVisibleChunkIndices()` calculates which chunks to render
+- Components use absolute positioning for chunks
+- Massive memory savings for spectrogram visualization
+
+### High-DPI Canvas Rendering
+
+All canvas components automatically scale for Retina/high-DPI displays:
+
+- `DevicePixelRatioProvider` provides window.devicePixelRatio
+- Canvas internal resolution scaled by DPR
+- CSS size remains unchanged
+- Crisp waveforms on all displays
+
+### Web Worker Spectrogram
+
+Spectrogram FFT processing runs in a Web Worker to keep UI responsive:
+
+- `SpectrogramChannel` transfers canvas control to worker via `transferControlToOffscreen()`
+- Worker processes audio and draws directly to canvas
+- No main thread blocking
+- Multi-channel fairness ensures all visible chunks render before background batches
+
+### Theme System
+
+All styling properties live in theme object, not component props:
+
+- Colors, backgrounds, borders in `WaveformPlaylistTheme`
+- Components access via `props.theme`
+- Single source of truth for visual consistency
+- Easy dark mode support
+
+## Architectural Patterns
+
+### Stable React Keys
+
+Always use `track.id` / `clip.clipId` as React keys, never array indices. Index-based keys cause DOM reuse which breaks `transferControlToOffscreen()` (can only be called once per canvas).
+
+### Canvas Chunk Cleanup
+
+`useChunkedCanvasRefs()` runs cleanup on every render because the virtualizer can unmount canvases between any render. This prevents stale canvas references in workers.
+
+### Virtual Scrolling Chunk Offsets
+
+Canvas registries may contain non-consecutive chunks (e.g., chunks 50-55). Always use `extractChunkNumber(canvasId)` to get the real chunk index - never compute offsets from array index 0.
+
+### Multi-Channel Rendering Fairness
+
+Render visible chunks for ALL channels before starting background batches. Sequential per-channel rendering causes channel starvation when generation aborts interrupt background work.
+
+## Related Packages
+
+- [Browser](/api/packages/browser) - High-level React hooks and integrated components
+- [Core](/api/packages/core) - Type definitions used by these components
+- [Playout](/api/packages/playout) - Audio playback integration

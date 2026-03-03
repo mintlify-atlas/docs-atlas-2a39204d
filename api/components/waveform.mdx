@@ -1,0 +1,275 @@
+---
+title: Waveform Components
+description: Main waveform visualization components for displaying and interacting with audio tracks
+---
+
+## Waveform
+
+The main waveform visualization component that uses the `WaveformPlaylistProvider` context. Composes `PlaylistVisualization` (waveform + tracks) and `PlaylistAnnotationList` (annotation text list).
+
+**Package:** `@waveform-playlist/browser`
+
+**Requires:** `WaveformPlaylistProvider` context
+
+### Props
+
+<ParamField path="renderTrackControls" type="(trackIndex: number) => ReactNode">
+  Custom render function for track controls panel. Receives the track index.
+</ParamField>
+
+<ParamField path="renderTimestamp" type="(timeMs: number, pixelPosition: number) => ReactNode">
+  Custom render function for timescale timestamps. Receives time in milliseconds and pixel position.
+</ParamField>
+
+<ParamField path="renderPlayhead" type="RenderPlayheadFunction">
+  Custom playhead render function. Receives position (pixels) and color from theme.
+</ParamField>
+
+<ParamField path="annotationControls" type="AnnotationAction[]">
+  Action controls to show on each annotation item (e.g., delete, split). Only rendered when annotations are editable.
+</ParamField>
+
+<ParamField path="annotationListConfig" type="AnnotationActionOptions">
+  Configuration options for the annotation list behavior.
+</ParamField>
+
+<ParamField path="annotationTextHeight" type="number">
+  Height in pixels for the annotation text list below the waveform.
+</ParamField>
+
+<ParamField path="renderAnnotationItem" type="(props: RenderAnnotationItemProps) => ReactNode">
+  Custom render function for annotation items in the text list. Use this to completely customize how each annotation is displayed.
+</ParamField>
+
+<ParamField path="getAnnotationBoxLabel" type="(annotation: AnnotationData, index: number) => string">
+  Custom function to generate the label shown on annotation boxes in the waveform. Receives the annotation data and its index, returns a string label. Default: annotation.id
+</ParamField>
+
+<ParamField path="scrollActivePosition" type="'center' | 'start' | 'end' | 'nearest'" default="center">
+  Where to position the active annotation when auto-scrolling.
+</ParamField>
+
+<ParamField path="scrollActiveContainer" type="'nearest' | 'all'" default="nearest">
+  Which scrollable containers to scroll: 'nearest' (only the annotation list) or 'all' (including viewport).
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name.
+</ParamField>
+
+<ParamField path="showClipHeaders" type="boolean" default="false">
+  Show headers on clips for visual organization.
+</ParamField>
+
+<ParamField path="interactiveClips" type="boolean" default="false">
+  Enable dragging/trimming interactions on clips (requires @dnd-kit setup).
+</ParamField>
+
+<ParamField path="showFades" type="boolean" default="false">
+  Show fade in/out overlays on clips.
+</ParamField>
+
+<ParamField path="touchOptimized" type="boolean" default="false">
+  Enable mobile-optimized touch interactions. When true, increases touch target sizes for clip boundaries. Use with `useDragSensors({ touchOptimized: true })` for best results.
+</ParamField>
+
+<ParamField path="onRemoveTrack" type="(trackIndex: number) => void">
+  Callback when a track's close button is clicked. Only renders close button when provided.
+</ParamField>
+
+<ParamField path="recordingState" type="object">
+  Live recording state for real-time waveform preview.
+  
+  <Expandable title="Recording State Object">
+    <ParamField path="isRecording" type="boolean">
+      Whether recording is currently active.
+    </ParamField>
+    <ParamField path="trackId" type="string">
+      Which track is being recorded into.
+    </ParamField>
+    <ParamField path="startSample" type="number">
+      Where recording started (in samples).
+    </ParamField>
+    <ParamField path="durationSamples" type="number">
+      Current recording length (in samples).
+    </ParamField>
+    <ParamField path="peaks" type="Int8Array | Int16Array">
+      Live peaks data for visualization.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Usage
+
+```tsx
+import { WaveformPlaylistProvider, Waveform } from '@waveform-playlist/browser';
+
+function App() {
+  return (
+    <WaveformPlaylistProvider tracks={tracks}>
+      <Waveform 
+        showClipHeaders
+        interactiveClips
+        showFades
+        annotationTextHeight={200}
+      />
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+---
+
+## MediaElementWaveform
+
+Simplified waveform component for the `MediaElementPlaylistProvider` context. A stripped-down version that works with the MediaElement context for single-track visualization with annotations.
+
+**Package:** `@waveform-playlist/browser`
+
+**Requires:** `MediaElementPlaylistProvider` context
+
+**Use case:** Single track visualization, click to seek, annotation display and click-to-play, playhead animation. For multi-track editing, use the full `Waveform` component.
+
+### Props
+
+<ParamField path="annotationTextHeight" type="number">
+  Height in pixels for the annotation text list.
+</ParamField>
+
+<ParamField path="getAnnotationBoxLabel" type="(annotation: AnnotationData, index: number) => string">
+  Custom function to generate the label shown on annotation boxes.
+</ParamField>
+
+<ParamField path="renderAnnotationItem" type="(props: RenderAnnotationItemProps) => React.ReactNode">
+  Custom render function for annotation items in the text list. When provided, completely replaces the default annotation item rendering. Use this to customize the appearance of each annotation (e.g., add furigana).
+</ParamField>
+
+<ParamField path="editable" type="boolean" default="false">
+  Whether annotation boundaries can be edited by dragging.
+</ParamField>
+
+<ParamField path="linkEndpoints" type="boolean" default="false">
+  Whether dragging one annotation boundary also moves the adjacent annotation's boundary.
+</ParamField>
+
+<ParamField path="onAnnotationUpdate" type="(annotations: AnnotationData[]) => void">
+  Callback when annotations are updated (e.g., boundaries dragged). Called with the full updated annotations array.
+</ParamField>
+
+<ParamField path="scrollActivePosition" type="'center' | 'start' | 'end' | 'nearest'" default="center">
+  Where to position the active annotation when auto-scrolling.
+</ParamField>
+
+<ParamField path="scrollActiveContainer" type="'nearest' | 'all'" default="nearest">
+  Which scrollable containers to scroll: 'nearest' (only the annotation list) or 'all' (including viewport).
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name.
+</ParamField>
+
+### Usage
+
+```tsx
+import { MediaElementPlaylistProvider, MediaElementWaveform } from '@waveform-playlist/browser';
+
+function SimplePlayer() {
+  const [annotations, setAnnotations] = useState([]);
+  
+  return (
+    <MediaElementPlaylistProvider 
+      audioUrl="/audio.mp3"
+      annotations={annotations}
+    >
+      <MediaElementWaveform 
+        editable
+        linkEndpoints
+        onAnnotationUpdate={setAnnotations}
+        annotationTextHeight={150}
+      />
+    </MediaElementPlaylistProvider>
+  );
+}
+```
+
+---
+
+## PlaylistVisualization
+
+Standalone playlist visualization component (WebAudio version). Renders the waveform tracks, timescale, annotation boxes, selection, playhead, loop regions, and track controls — everything inside `<Playlist>` plus wrapping providers.
+
+**Package:** `@waveform-playlist/browser`
+
+**Requires:** `WaveformPlaylistProvider` context
+
+**Note:** Does NOT render the annotation text list. Pair with `PlaylistAnnotationList` for a full annotation editing UI, or use the `Waveform` component which includes both.
+
+### Props
+
+Accepts the same props as `Waveform` except for annotation list-specific props (`annotationTextHeight`, `renderAnnotationItem`, `scrollActivePosition`, `scrollActiveContainer`).
+
+<ParamField path="renderTrackControls" type="(trackIndex: number) => ReactNode">
+  Custom render function for track controls panel.
+</ParamField>
+
+<ParamField path="renderTimestamp" type="(timeMs: number, pixelPosition: number) => ReactNode">
+  Custom render function for timescale timestamps.
+</ParamField>
+
+<ParamField path="renderPlayhead" type="RenderPlayheadFunction">
+  Custom playhead render function.
+</ParamField>
+
+<ParamField path="annotationControls" type="AnnotationAction[]">
+  Action controls for annotations.
+</ParamField>
+
+<ParamField path="getAnnotationBoxLabel" type="(annotation: AnnotationData, index: number) => string">
+  Custom function to generate annotation box labels.
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name.
+</ParamField>
+
+<ParamField path="showClipHeaders" type="boolean" default="false">
+  Show headers on clips.
+</ParamField>
+
+<ParamField path="interactiveClips" type="boolean" default="false">
+  Enable dragging/trimming interactions on clips.
+</ParamField>
+
+<ParamField path="showFades" type="boolean" default="false">
+  Show fade in/out overlays.
+</ParamField>
+
+<ParamField path="touchOptimized" type="boolean" default="false">
+  Enable mobile-optimized touch interactions.
+</ParamField>
+
+<ParamField path="onRemoveTrack" type="(trackIndex: number) => void">
+  Callback when track close button is clicked.
+</ParamField>
+
+<ParamField path="recordingState" type="object">
+  Live recording state for real-time waveform preview.
+</ParamField>
+
+### Usage
+
+```tsx
+import { WaveformPlaylistProvider, PlaylistVisualization } from '@waveform-playlist/browser';
+
+function CustomEditor() {
+  return (
+    <WaveformPlaylistProvider tracks={tracks}>
+      <PlaylistVisualization 
+        showClipHeaders
+        interactiveClips
+      />
+      {/* Custom annotation UI */}
+    </WaveformPlaylistProvider>
+  );
+}
+```

@@ -1,0 +1,277 @@
+---
+title: Audio Tracks Hook
+description: React hook for loading audio files and converting them to playlist tracks
+---
+
+The `useAudioTracks` hook handles fetching audio files, decoding them, and creating `ClipTrack` objects for the playlist. It supports progressive loading, pre-loaded buffers, and peaks-first rendering.
+
+## useAudioTracks
+
+Load audio from URLs or AudioBuffers and convert to ClipTrack format.
+
+### Import
+
+```typescript
+import { useAudioTracks } from '@waveform-playlist/browser';
+import type { AudioTrackConfig } from '@waveform-playlist/browser';
+```
+
+### Basic Usage
+
+```typescript
+import { WaveformPlaylistProvider, useAudioTracks } from '@waveform-playlist/browser';
+
+function MyPlaylist() {
+  const { tracks, loading, error } = useAudioTracks([
+    { src: '/audio/vocals.mp3', name: 'Vocals' },
+    { src: '/audio/drums.mp3', name: 'Drums' },
+    { src: '/audio/bass.mp3', name: 'Bass' },
+  ]);
+
+  if (loading) return <div>Loading tracks...</div>;
+  if (error) return <div>Error: {error}</div>;
+
+  return <WaveformPlaylistProvider tracks={tracks}>...</WaveformPlaylistProvider>;
+}
+```
+
+### Progressive Loading
+
+Show tracks as they load instead of waiting for all to finish:
+
+```typescript
+const { tracks, loading, loadedCount, totalCount } = useAudioTracks(
+  [
+    { src: '/audio/track1.mp3' },
+    { src: '/audio/track2.mp3' },
+    { src: '/audio/track3.mp3' },
+  ],
+  { progressive: true }
+);
+
+if (loading) {
+  return <div>Loading {loadedCount}/{totalCount} tracks...</div>;
+}
+```
+
+### Pre-loaded AudioBuffers
+
+Skip fetch and decode by providing AudioBuffers directly:
+
+```typescript
+const myBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+const { tracks } = useAudioTracks([
+  { audioBuffer: myBuffer, name: 'Pre-loaded Track' },
+]);
+```
+
+### Peaks-First Rendering
+
+Render waveforms instantly using pre-computed peak data:
+
+```typescript
+const { tracks } = useAudioTracks([
+  {
+    waveformData: preloadedPeaks, // BBC audiowaveform format
+    name: 'Instant Waveform',
+    // Audio can load later
+  },
+]);
+```
+
+### Multi-Clip Timeline
+
+Position clips at specific times with offsets and durations:
+
+```typescript
+const { tracks } = useAudioTracks([
+  {
+    src: '/audio/song.mp3',
+    name: 'Intro',
+    startTime: 0,      // Clip starts at 0s on timeline
+    duration: 10,      // Clip is 10s long
+    offset: 5,         // Start 5s into the source audio
+  },
+  {
+    src: '/audio/song.mp3',
+    name: 'Chorus',
+    startTime: 15,     // Clip starts at 15s on timeline
+    duration: 20,      // Clip is 20s long
+    offset: 30,        // Start 30s into the source audio
+  },
+]);
+```
+
+### With Fades and Effects
+
+```typescript
+const { tracks } = useAudioTracks([
+  {
+    src: '/audio/vocals.mp3',
+    name: 'Vocals',
+    volume: 0.8,
+    pan: -0.3,
+    color: '#4A90E2',
+    fadeIn: { duration: 2, type: 'linear' },
+    fadeOut: { duration: 3, type: 'exponential' },
+    effects: (graphEnd, masterGainNode, isOffline) => {
+      const reverb = new Reverb();
+      graphEnd.connect(reverb).connect(masterGainNode);
+      return () => reverb.dispose();
+    },
+  },
+]);
+```
+
+### Spectrogram Rendering
+
+```typescript
+const { tracks } = useAudioTracks([
+  {
+    src: '/audio/track.mp3',
+    renderMode: 'both', // 'waveform' | 'spectrogram' | 'both'
+    spectrogramConfig: {
+      fftSize: 2048,
+      windowFunction: 'hann',
+      frequencyScale: 'log',
+    },
+    spectrogramColorMap: 'viridis', // or custom color array
+  },
+]);
+```
+
+## Parameters
+
+### AudioTrackConfig
+
+Configuration for a single audio track.
+
+<ParamField path="src" type="string">
+  URL to audio file. Used if `audioBuffer` is not provided.
+</ParamField>
+
+<ParamField path="audioBuffer" type="AudioBuffer">
+  Pre-loaded AudioBuffer. Skips fetch and decode if provided.
+</ParamField>
+
+<ParamField path="name" type="string">
+  Display name for the track. Defaults to `"Track N"`.
+</ParamField>
+
+<ParamField path="muted" type="boolean" default={false}>
+  Whether the track starts muted.
+</ParamField>
+
+<ParamField path="soloed" type="boolean" default={false}>
+  Whether the track starts soloed.
+</ParamField>
+
+<ParamField path="volume" type="number" default={1.0}>
+  Track volume (0-1).
+</ParamField>
+
+<ParamField path="pan" type="number" default={0}>
+  Stereo pan position (-1 to 1, where -1 is left, 0 is center, 1 is right).
+</ParamField>
+
+<ParamField path="color" type="string">
+  Waveform color (CSS color value).
+</ParamField>
+
+<ParamField path="effects" type="TrackEffectsFunction">
+  Function to set up audio effects chain for this track.
+  
+  ```typescript
+  (graphEnd, masterGainNode, isOffline) => void | (() => void)
+  ```
+</ParamField>
+
+<ParamField path="startTime" type="number" default={0}>
+  When the clip starts on the timeline (in seconds).
+</ParamField>
+
+<ParamField path="duration" type="number">
+  Duration of the clip in seconds. Defaults to full audio duration.
+</ParamField>
+
+<ParamField path="offset" type="number" default={0}>
+  Offset into the source audio file in seconds.
+</ParamField>
+
+<ParamField path="fadeIn" type="Fade">
+  Fade in configuration.
+  
+  ```typescript
+  { duration: number, type?: 'linear' | 'exponential' | 'logarithmic' | 'sCurve' }
+  ```
+</ParamField>
+
+<ParamField path="fadeOut" type="Fade">
+  Fade out configuration.
+  
+  ```typescript
+  { duration: number, type?: 'linear' | 'exponential' | 'logarithmic' | 'sCurve' }
+  ```
+</ParamField>
+
+<ParamField path="waveformData" type="WaveformDataObject">
+  Pre-computed waveform data in BBC audiowaveform format. For peaks-first rendering, provide this without `audioBuffer` or `src`. Sample rate and duration are derived from the waveform data.
+</ParamField>
+
+<ParamField path="renderMode" type="'waveform' | 'spectrogram' | 'both'" default="waveform">
+  Visualization render mode.
+</ParamField>
+
+<ParamField path="spectrogramConfig" type="SpectrogramConfig">
+  Spectrogram configuration (FFT size, window function, frequency scale, etc.).
+</ParamField>
+
+<ParamField path="spectrogramColorMap" type="ColorMapValue">
+  Spectrogram color map name or custom color array.
+</ParamField>
+
+### UseAudioTracksOptions
+
+<ParamField path="progressive" type="boolean" default={false}>
+  When `true`, tracks are added to the playlist as they load, rather than waiting for all tracks to finish loading.
+</ParamField>
+
+## Return Value
+
+<ResponseField name="tracks" type="ClipTrack[]">
+  Array of loaded tracks ready for `WaveformPlaylistProvider`.
+</ResponseField>
+
+<ResponseField name="loading" type="boolean">
+  Whether tracks are currently loading.
+</ResponseField>
+
+<ResponseField name="error" type="string | null">
+  Error message if loading failed, otherwise `null`.
+</ResponseField>
+
+<ResponseField name="loadedCount" type="number">
+  Number of tracks that have finished loading.
+</ResponseField>
+
+<ResponseField name="totalCount" type="number">
+  Total number of tracks to load.
+</ResponseField>
+
+## Loading Strategies
+
+The hook supports three loading strategies:
+
+1. **URL-based loading** - Provide `src`, hook fetches and decodes
+2. **Pre-loaded buffers** - Provide `audioBuffer`, skip fetch/decode
+3. **Peaks-first rendering** - Provide `waveformData` only, audio loads later
+
+## AbortController Cleanup
+
+The hook uses `AbortController` to cancel in-flight fetches on unmount or when configs change. This prevents memory leaks and race conditions.
+
+## Related
+
+- [Effects Hooks](/api/hooks/effects) - Add dynamic effects to tracks
+- [WaveformPlaylistProvider](/api/providers/waveform-playlist-provider) - Playlist context provider

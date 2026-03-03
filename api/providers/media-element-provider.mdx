@@ -1,0 +1,537 @@
+---
+title: 'MediaElementPlaylistProvider'
+description: 'Simplified provider for single-track playback with HTMLAudioElement and pitch-preserving speed control'
+---
+
+## Overview
+
+The `MediaElementPlaylistProvider` is a simplified provider for single-track audio playback using the browser's native `HTMLAudioElement`. It provides pitch-preserving playback rate control (0.5x - 2.0x speed) without requiring audio decoding or the Tone.js library.
+
+**Use this provider for:**
+- Language learning apps (speed control for practice)
+- Podcast players
+- Single-track audio viewers
+- Simple annotation playback
+- Use cases where you need speed control without pitch shift
+
+**For multi-track editing, use [`WaveformPlaylistProvider`](/api/providers/waveform-playlist-provider) instead.**
+
+## Key Differences from WaveformPlaylistProvider
+
+| Feature | MediaElementPlaylistProvider | WaveformPlaylistProvider |
+|---------|------------------------------|-------------------------|
+| Audio Engine | HTMLAudioElement | Tone.js (Web Audio API) |
+| Playback Speed | 0.5x - 2.0x (pitch-preserving) | 1.0x only |
+| Tracks | Single track only | Multiple tracks |
+| Audio Effects | Not supported | Full Tone.js effects |
+| Waveform Data | Pre-computed (required) | Generated from AudioBuffer |
+| Track Editing | View only | Full editing (move, trim, split) |
+| Recording | Not supported | Supported |
+| Bundle Size | Smaller (no Tone.js) | Larger |
+
+## Import
+
+```tsx
+import { MediaElementPlaylistProvider } from '@waveform-playlist/browser';
+```
+
+## Props
+
+<ParamField path="track" type="MediaElementTrackConfig" required>
+  Single track configuration with source URL and pre-computed waveform data.
+  
+  ```tsx
+  track={{
+    source: 'https://example.com/audio.mp3',
+    waveformData: peaksData,  // From BBC audiowaveform or similar
+    name: 'My Audio'
+  }}
+  ```
+  
+  <Expandable title="MediaElementTrackConfig properties">
+    <ResponseField name="source" type="string" required>
+      Audio source URL or Blob URL. Must be a valid audio file accessible via HTTP or blob.
+    </ResponseField>
+    
+    <ResponseField name="waveformData" type="WaveformDataObject" required>
+      Pre-computed waveform data for visualization. This provider does **not** decode audio, so waveform data must be provided.
+      
+      Generate using [BBC audiowaveform](https://github.com/bbc/audiowaveform) or similar tools.
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      Track name for display.
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="samplesPerPixel" type="number" default="1024">
+  Zoom level in samples per pixel. Lower values = more zoomed in.
+  
+  **Note:** Unlike `WaveformPlaylistProvider`, zoom is fixed (no zoom in/out controls).
+</ParamField>
+
+<ParamField path="waveHeight" type="number" default="100">
+  Height in pixels of the waveform track.
+</ParamField>
+
+<ParamField path="timescale" type="boolean" default="false">
+  Show timescale ruler above waveform.
+</ParamField>
+
+<ParamField path="playbackRate" type="number" default="1.0">
+  Initial playback speed. Valid range: 0.5 to 2.0.
+  
+  - `0.5` = half speed (50%)
+  - `1.0` = normal speed
+  - `2.0` = double speed (200%)
+  
+  Speed changes preserve pitch (no "chipmunk effect").
+</ParamField>
+
+<ParamField path="automaticScroll" type="boolean" default="false">
+  Automatically scroll to keep the playhead centered during playback.
+</ParamField>
+
+<ParamField path="theme" type="Partial<WaveformPlaylistTheme>">
+  Custom theme to override default colors and styling.
+  
+  See [Theming documentation](/concepts/theming) for available options.
+</ParamField>
+
+<ParamField path="controls" type="{ show: boolean; width: number }" default="{ show: false, width: 0 }">
+  Configuration for track control panel area.
+  
+  ```tsx
+  controls={{ show: true, width: 100 }}
+  ```
+</ParamField>
+
+<ParamField path="annotationList" type="object">
+  Configuration for annotations display.
+  
+  <Expandable title="Annotation configuration properties">
+    <ResponseField name="annotations" type="AnnotationData[]">
+      Array of annotation segments. Must be pre-parsed with numeric `start` and `end` values.
+      
+      Use `parseAeneas()` from `@waveform-playlist/annotations` to parse raw annotation data.
+    </ResponseField>
+    
+    <ResponseField name="isContinuousPlay" type="boolean" default="false">
+      When enabled, playback continues across annotation boundaries. When disabled, playback stops at the end of the current annotation.
+    </ResponseField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="barWidth" type="number" default="1">
+  Width in pixels of waveform bars.
+</ParamField>
+
+<ParamField path="barGap" type="number" default="0">
+  Spacing in pixels between waveform bars.
+</ParamField>
+
+<ParamField path="progressBarWidth" type="number" default="barWidth + barGap">
+  Width in pixels of progress bars during playback.
+</ParamField>
+
+<ParamField path="onAnnotationsChange" type="(annotations: AnnotationData[]) => void">
+  Callback fired when annotations are edited.
+  
+  ```tsx
+  onAnnotationsChange={(updated) => setAnnotations(updated)}
+  ```
+</ParamField>
+
+<ParamField path="onReady" type="() => void">
+  Callback fired when the audio element is ready for playback.
+</ParamField>
+
+## Context Hooks
+
+The provider exposes four separate contexts optimized for performance.
+
+### useMediaElementAnimation
+
+Access playback state and timing.
+
+```tsx
+import { useMediaElementAnimation } from '@waveform-playlist/browser';
+
+function MyComponent() {
+  const { 
+    isPlaying,      // boolean
+    currentTime,    // number (seconds)
+    currentTimeRef  // RefObject<number>
+  } = useMediaElementAnimation();
+}
+```
+
+<Expandable title="MediaElementAnimation values">
+  <ResponseField name="isPlaying" type="boolean">
+    Whether audio is currently playing.
+  </ResponseField>
+  
+  <ResponseField name="currentTime" type="number">
+    Current playback position in seconds.
+  </ResponseField>
+  
+  <ResponseField name="currentTimeRef" type="RefObject<number>">
+    Ref to current time for animation loops.
+  </ResponseField>
+</Expandable>
+
+### useMediaElementState
+
+Access playlist state (annotations, playback rate).
+
+```tsx
+import { useMediaElementState } from '@waveform-playlist/browser';
+
+function MyComponent() {
+  const {
+    continuousPlay,
+    annotations,
+    activeAnnotationId,
+    playbackRate,
+    isAutomaticScroll
+  } = useMediaElementState();
+}
+```
+
+<Expandable title="MediaElementState values">
+  <ResponseField name="continuousPlay" type="boolean">
+    Whether continuous play is enabled for annotations.
+  </ResponseField>
+  
+  <ResponseField name="annotations" type="AnnotationData[]">
+    Current annotations array.
+  </ResponseField>
+  
+  <ResponseField name="activeAnnotationId" type="string | null">
+    ID of the currently active annotation during playback.
+  </ResponseField>
+  
+  <ResponseField name="playbackRate" type="number">
+    Current playback speed (0.5 to 2.0).
+  </ResponseField>
+  
+  <ResponseField name="isAutomaticScroll" type="boolean">
+    Whether automatic scroll is enabled.
+  </ResponseField>
+</Expandable>
+
+### useMediaElementControls
+
+Access control functions for playback and settings.
+
+```tsx
+import { useMediaElementControls } from '@waveform-playlist/browser';
+
+function PlaybackControls() {
+  const { 
+    play, 
+    pause, 
+    stop, 
+    seekTo,
+    setPlaybackRate 
+  } = useMediaElementControls();
+  
+  return (
+    <div>
+      <button onClick={() => play()}>Play</button>
+      <button onClick={pause}>Pause</button>
+      <button onClick={stop}>Stop</button>
+      <button onClick={() => setPlaybackRate(0.75)}>0.75x</button>
+      <button onClick={() => setPlaybackRate(1.0)}>1.0x</button>
+      <button onClick={() => setPlaybackRate(1.5)}>1.5x</button>
+    </div>
+  );
+}
+```
+
+<Expandable title="MediaElementControls methods">
+  <ResponseField name="play" type="(startTime?: number) => void">
+    Start playback. Optionally specify start time in seconds.
+  </ResponseField>
+  
+  <ResponseField name="pause" type="() => void">
+    Pause playback at current position.
+  </ResponseField>
+  
+  <ResponseField name="stop" type="() => void">
+    Stop playback and return to start.
+  </ResponseField>
+  
+  <ResponseField name="seekTo" type="(time: number) => void">
+    Seek to a specific time in seconds.
+  </ResponseField>
+  
+  <ResponseField name="setPlaybackRate" type="(rate: number) => void">
+    Set playback speed (0.5 to 2.0). Clamped automatically.
+  </ResponseField>
+  
+  <ResponseField name="setContinuousPlay" type="(enabled: boolean) => void">
+    Enable or disable continuous play for annotations.
+  </ResponseField>
+  
+  <ResponseField name="setAnnotations" type="Dispatch<SetStateAction<AnnotationData[]>>">
+    Update annotations. Calls `onAnnotationsChange` callback.
+  </ResponseField>
+  
+  <ResponseField name="setActiveAnnotationId" type="(id: string | null) => void">
+    Set the active annotation ID.
+  </ResponseField>
+  
+  <ResponseField name="setAutomaticScroll" type="(enabled: boolean) => void">
+    Enable or disable automatic scrolling.
+  </ResponseField>
+  
+  <ResponseField name="setScrollContainer" type="(element: HTMLDivElement | null) => void">
+    Set the scroll container element for automatic scrolling.
+  </ResponseField>
+  
+  <ResponseField name="scrollContainerRef" type="RefObject<HTMLDivElement | null>">
+    Ref to the scroll container element.
+  </ResponseField>
+</Expandable>
+
+### useMediaElementData
+
+Access playlist data (duration, waveform peaks).
+
+```tsx
+import { useMediaElementData } from '@waveform-playlist/browser';
+
+function MyComponent() {
+  const {
+    duration,
+    peaksDataArray,
+    sampleRate,
+    waveHeight,
+    samplesPerPixel
+  } = useMediaElementData();
+}
+```
+
+<Expandable title="MediaElementData values">
+  <ResponseField name="duration" type="number">
+    Audio duration in seconds.
+  </ResponseField>
+  
+  <ResponseField name="peaksDataArray" type="TrackClipPeaks[]">
+    Array of waveform peak data for rendering.
+  </ResponseField>
+  
+  <ResponseField name="sampleRate" type="number">
+    Audio sample rate from waveform data.
+  </ResponseField>
+  
+  <ResponseField name="waveHeight" type="number">
+    Height in pixels of waveform track.
+  </ResponseField>
+  
+  <ResponseField name="timeScaleHeight" type="number">
+    Height in pixels of timescale ruler (0 if disabled).
+  </ResponseField>
+  
+  <ResponseField name="samplesPerPixel" type="number">
+    Current zoom level in samples per pixel.
+  </ResponseField>
+  
+  <ResponseField name="playoutRef" type="RefObject<MediaElementPlayout | null>">
+    Ref to the underlying media element playout instance.
+  </ResponseField>
+  
+  <ResponseField name="controls" type="{ show: boolean; width: number }">
+    Track controls configuration.
+  </ResponseField>
+  
+  <ResponseField name="barWidth" type="number">
+    Width in pixels of waveform bars.
+  </ResponseField>
+  
+  <ResponseField name="barGap" type="number">
+    Gap in pixels between waveform bars.
+  </ResponseField>
+  
+  <ResponseField name="progressBarWidth" type="number">
+    Width in pixels of progress bars.
+  </ResponseField>
+</Expandable>
+
+## Complete Example
+
+```tsx
+import { useState } from 'react';
+import { 
+  MediaElementPlaylistProvider,
+  useMediaElementControls,
+  useMediaElementState,
+  useMediaElementAnimation
+} from '@waveform-playlist/browser';
+import { parseAeneas } from '@waveform-playlist/annotations';
+
+function SpeedControl() {
+  const { setPlaybackRate } = useMediaElementControls();
+  const { playbackRate } = useMediaElementState();
+  
+  return (
+    <div>
+      <label>Speed: {playbackRate}x</label>
+      <input
+        type="range"
+        min="0.5"
+        max="2.0"
+        step="0.1"
+        value={playbackRate}
+        onChange={(e) => setPlaybackRate(parseFloat(e.target.value))}
+      />
+    </div>
+  );
+}
+
+function PlaybackControls() {
+  const { play, pause, stop } = useMediaElementControls();
+  const { isPlaying } = useMediaElementAnimation();
+  
+  return (
+    <div>
+      <button onClick={() => play()}>
+        {isPlaying ? 'Pause' : 'Play'}
+      </button>
+      <button onClick={stop}>Stop</button>
+    </div>
+  );
+}
+
+function App() {
+  const [annotations, setAnnotations] = useState([
+    parseAeneas({ begin: "0.000", end: "2.500", id: "1", lines: ["First segment"] }),
+    parseAeneas({ begin: "2.500", end: "5.000", id: "2", lines: ["Second segment"] })
+  ]);
+  
+  // Waveform data from BBC audiowaveform or similar tool
+  const waveformData = {
+    sample_rate: 44100,
+    samples_per_pixel: 512,
+    bits: 8,
+    length: 2000,
+    data: [...], // Int8Array of peak values
+    duration: 45.2
+  };
+  
+  return (
+    <MediaElementPlaylistProvider
+      track={{
+        source: 'https://example.com/podcast-episode.mp3',
+        waveformData: waveformData,
+        name: 'Episode 42'
+      }}
+      waveHeight={120}
+      samplesPerPixel={1024}
+      playbackRate={1.0}
+      automaticScroll
+      timescale
+      annotationList={{
+        annotations,
+        isContinuousPlay: true
+      }}
+      onAnnotationsChange={setAnnotations}
+      onReady={() => console.log('Audio ready!')}
+    >
+      <PlaybackControls />
+      <SpeedControl />
+      {/* Your waveform visualization components */}
+    </MediaElementPlaylistProvider>
+  );
+}
+```
+
+## Generating Waveform Data
+
+Since this provider doesn't decode audio, you must provide pre-computed waveform data. Use tools like:
+
+### BBC audiowaveform (Recommended)
+
+```bash
+# Install
+brew install audiowaveform
+
+# Generate waveform data
+audiowaveform -i input.mp3 -o output.json -z 512
+```
+
+### Server-side with audiowaveform
+
+```javascript
+const { exec } = require('child_process');
+
+function generateWaveform(inputPath, outputPath) {
+  return new Promise((resolve, reject) => {
+    exec(
+      `audiowaveform -i ${inputPath} -o ${outputPath} -z 512 --pixels-per-second 50`,
+      (error, stdout, stderr) => {
+        if (error) reject(error);
+        else resolve(outputPath);
+      }
+    );
+  });
+}
+```
+
+The JSON output from audiowaveform is compatible with the `waveformData` prop.
+
+## Use Cases
+
+### Language Learning App
+
+```tsx
+<MediaElementPlaylistProvider
+  track={{ source: lessonAudioUrl, waveformData, name: 'Lesson 5' }}
+  playbackRate={0.75}  // Slow down for beginners
+  annotationList={{
+    annotations: sentenceAnnotations,
+    isContinuousPlay: false  // Stop after each sentence
+  }}
+>
+  {/* UI for sentence-by-sentence playback */}
+</MediaElementPlaylistProvider>
+```
+
+### Podcast Player
+
+```tsx
+<MediaElementPlaylistProvider
+  track={{ source: episodeUrl, waveformData, name: episode.title }}
+  playbackRate={1.5}  // Faster playback for regular listeners
+  automaticScroll
+  annotationList={{
+    annotations: chapterMarkers,
+    isContinuousPlay: true
+  }}
+>
+  {/* UI with chapter navigation */}
+</MediaElementPlaylistProvider>
+```
+
+### Interview Transcription
+
+```tsx
+<MediaElementPlaylistProvider
+  track={{ source: interviewUrl, waveformData, name: 'Interview' }}
+  playbackRate={0.8}  // Slightly slower for transcription
+  annotationList={{
+    annotations: transcriptSegments,
+    isContinuousPlay: false
+  }}
+>
+  {/* UI for reviewing and editing transcript timing */}
+</MediaElementPlaylistProvider>
+```
+
+## Related
+
+- [WaveformPlaylistProvider](/api/providers/waveform-playlist-provider) - Full multi-track editing provider
+- [AnnotationProvider](/api/providers/annotation-provider) - Annotation UI components
+- [Advanced: Media Element Provider](/advanced/media-element-provider) - Implementation details

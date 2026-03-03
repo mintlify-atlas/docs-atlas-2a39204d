@@ -1,0 +1,544 @@
+---
+title: Custom Effects
+description: Build custom audio effect chains using Tone.js effects with runtime parameter control
+---
+
+# Custom Effects
+
+Waveform Playlist includes a complete effects system built on Tone.js, with 20 built-in effects organized into 7 categories. You can create dynamic effect chains with real-time parameter updates and full WAV export support.
+
+## Effects Architecture
+
+The effects system uses three main patterns:
+
+1. **Effect Definitions** - Metadata for each effect (parameters, ranges, defaults)
+2. **Effect Factory** - Creates Tone.js effect instances from definitions
+3. **Dynamic Hooks** - Manage effect chains with runtime updates
+
+### Effect Definition Structure
+
+```typescript
+interface EffectDefinition {
+  id: string;
+  name: string;
+  category: 'delay' | 'reverb' | 'modulation' | 'distortion' | 
+            'filter' | 'dynamics' | 'spatial';
+  description: string;
+  parameters: EffectParameter[];
+}
+
+interface EffectParameter {
+  name: string;
+  label: string;
+  type: 'number' | 'select' | 'boolean';
+  min?: number;
+  max?: number;
+  step?: number;
+  default: number | string | boolean;
+  unit?: string;
+  options?: { value: string | number; label: string }[];
+}
+```
+
+### Effect Instance Interface
+
+```typescript
+interface EffectInstance {
+  effect: ToneAudioNode;
+  id: string;
+  instanceId: string;
+  dispose: () => void;
+  setParameter: (name: string, value: number | string | boolean) => void;
+  getParameter: (name: string) => number | string | boolean | undefined;
+  connect: (destination: InputNode) => void;
+  disconnect: () => void;
+}
+```
+
+## Built-in Effects
+
+### Reverb Effects (3)
+
+**Reverb** - Simple convolution reverb
+```typescript
+{ id: 'reverb', parameters: ['decay', 'wet'] }
+```
+
+**Freeverb** - Classic Schroeder/Moorer reverb
+```typescript
+{ id: 'freeverb', parameters: ['roomSize', 'dampening', 'wet'] }
+```
+
+**JC Reverb** - Roland JC-120 chorus reverb emulation
+```typescript
+{ id: 'jcReverb', parameters: ['roomSize', 'wet'] }
+```
+
+### Delay Effects (2)
+
+**Feedback Delay** - Delay line with feedback
+```typescript
+{ id: 'feedbackDelay', parameters: ['delayTime', 'feedback', 'wet'] }
+```
+
+**Ping Pong Delay** - Stereo delay bouncing between channels
+```typescript
+{ id: 'pingPongDelay', parameters: ['delayTime', 'feedback', 'wet'] }
+```
+
+### Modulation Effects (5)
+
+**Chorus** - Layered detuned copies
+```typescript
+{ id: 'chorus', parameters: ['frequency', 'delayTime', 'depth', 'wet'] }
+```
+
+**Phaser** - Allpass filter phaser
+```typescript
+{ id: 'phaser', parameters: ['frequency', 'octaves', 'baseFrequency', 'wet'] }
+```
+
+**Tremolo** - Rhythmic volume modulation
+```typescript
+{ id: 'tremolo', parameters: ['frequency', 'depth', 'wet'] }
+```
+
+**Vibrato** - Pitch modulation
+```typescript
+{ id: 'vibrato', parameters: ['frequency', 'depth', 'wet'] }
+```
+
+**Auto Panner** - Automatic stereo panning
+```typescript
+{ id: 'autoPanner', parameters: ['frequency', 'depth', 'wet'] }
+```
+
+### Filter Effects (3)
+
+**Auto Filter** - LFO-driven filter sweep
+```typescript
+{ id: 'autoFilter', parameters: ['frequency', 'baseFrequency', 'octaves', 'depth', 'wet'] }
+```
+
+**Auto Wah** - Envelope follower filter
+```typescript
+{ id: 'autoWah', parameters: ['baseFrequency', 'octaves', 'sensitivity', 'wet'] }
+```
+
+**3-Band EQ** - Low/mid/high equalizer
+```typescript
+{ id: 'eq3', parameters: ['low', 'mid', 'high', 'lowFrequency', 'highFrequency'] }
+```
+
+### Distortion Effects (3)
+
+**Distortion** - Waveshaping distortion
+```typescript
+{ id: 'distortion', parameters: ['distortion', 'wet'] }
+```
+
+**Bit Crusher** - Lo-fi digital texture
+```typescript
+{ id: 'bitCrusher', parameters: ['bits', 'wet'] }
+```
+
+**Chebyshev** - Polynomial waveshaping
+```typescript
+{ id: 'chebyshev', parameters: ['order', 'wet'] }
+```
+
+### Dynamics Effects (3)
+
+**Compressor** - Dynamic range compression
+```typescript
+{ id: 'compressor', parameters: ['threshold', 'ratio', 'attack', 'release', 'knee'] }
+```
+
+**Limiter** - Hard limiter for clipping prevention
+```typescript
+{ id: 'limiter', parameters: ['threshold'] }
+```
+
+**Gate** - Noise gate
+```typescript
+{ id: 'gate', parameters: ['threshold', 'attack', 'release'] }
+```
+
+### Spatial Effects (1)
+
+**Stereo Widener** - Stereo image expansion
+```typescript
+{ id: 'stereoWidener', parameters: ['width'] }
+```
+
+## Master Effects Chain
+
+Use `useDynamicEffects` for a global master chain affecting all tracks:
+
+```tsx
+import { useDynamicEffects } from '@waveform-playlist/browser';
+
+function App() {
+  const {
+    activeEffects,
+    availableEffects,
+    addEffect,
+    removeEffect,
+    updateParameter,
+    toggleBypass,
+    reorderEffects,
+    masterEffects,
+  } = useDynamicEffects();
+  
+  return (
+    <WaveformPlaylistProvider
+      tracks={tracks}
+      masterEffects={masterEffects}
+    >
+      {/* Effect controls */}
+      <button onClick={() => addEffect('reverb')}>Add Reverb</button>
+      
+      {activeEffects.map((effect) => (
+        <div key={effect.instanceId}>
+          <h3>{effect.definition.name}</h3>
+          
+          {effect.definition.parameters.map((param) => (
+            <input
+              key={param.name}
+              type="range"
+              min={param.min}
+              max={param.max}
+              step={param.step}
+              value={effect.params[param.name] as number}
+              onChange={(e) => 
+                updateParameter(
+                  effect.instanceId, 
+                  param.name, 
+                  parseFloat(e.target.value)
+                )
+              }
+            />
+          ))}
+          
+          <button onClick={() => toggleBypass(effect.instanceId)}>
+            {effect.bypassed ? 'Enable' : 'Bypass'}
+          </button>
+          <button onClick={() => removeEffect(effect.instanceId)}>
+            Remove
+          </button>
+        </div>
+      ))}
+      
+      <Waveform />
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+## Per-Track Effects
+
+Use `useTrackDynamicEffects` for independent effect chains on each track:
+
+```tsx
+import { useTrackDynamicEffects } from '@waveform-playlist/browser';
+
+function App() {
+  const {
+    trackEffects,
+    addTrackEffect,
+    removeTrackEffect,
+    updateTrackParameter,
+    toggleTrackBypass,
+    trackEffectsFunctions,
+  } = useTrackDynamicEffects();
+  
+  return (
+    <WaveformPlaylistProvider
+      tracks={tracks}
+      trackEffects={trackEffectsFunctions}
+    >
+      {tracks.map((track) => (
+        <div key={track.id}>
+          <h3>{track.name}</h3>
+          <button onClick={() => addTrackEffect(track.id, 'chorus')}>
+            Add Chorus
+          </button>
+          
+          {trackEffects[track.id]?.map((effect) => (
+            <div key={effect.instanceId}>
+              {/* Parameter controls */}
+            </div>
+          ))}
+        </div>
+      ))}
+      
+      <Waveform />
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+## Creating Custom Tone.js Effects
+
+Add your own effects to the factory:
+
+```typescript
+import { createEffectInstance } from '@waveform-playlist/browser';
+import type { EffectDefinition } from '@waveform-playlist/browser';
+
+// 1. Define the effect metadata
+const customReverbDef: EffectDefinition = {
+  id: 'customReverb',
+  name: 'Custom Reverb',
+  category: 'reverb',
+  description: 'A custom reverb with extended decay',
+  parameters: [
+    {
+      name: 'decay',
+      label: 'Decay Time',
+      type: 'number',
+      min: 0.1,
+      max: 20,
+      step: 0.1,
+      default: 5,
+      unit: 's',
+    },
+    {
+      name: 'preDelay',
+      label: 'Pre-Delay',
+      type: 'number',
+      min: 0,
+      max: 0.5,
+      step: 0.01,
+      default: 0.03,
+      unit: 's',
+    },
+    {
+      name: 'wet',
+      label: 'Mix',
+      type: 'number',
+      min: 0,
+      max: 1,
+      step: 0.01,
+      default: 0.3,
+    },
+  ],
+};
+
+// 2. Create the effect instance
+const params = { decay: 5, preDelay: 0.03, wet: 0.3 };
+const instance = createEffectInstance(customReverbDef, params);
+
+// 3. Use in your audio graph
+instance.connect(destination);
+
+// 4. Update parameters in real-time
+instance.setParameter('decay', 10);
+instance.setParameter('wet', 0.5);
+```
+
+## EffectsFunction Type
+
+The `EffectsFunction` type is the core interface for custom effect chains:
+
+```typescript
+type EffectsFunction = (
+  masterGainNode: Volume,
+  destination: ToneAudioNode,
+  isOffline: boolean
+) => (() => void) | void;
+```
+
+### Creating Custom EffectsFunction
+
+```tsx
+import { Volume, Reverb, Chorus, type ToneAudioNode } from 'tone';
+import type { EffectsFunction } from '@waveform-playlist/playout';
+
+const customEffects: EffectsFunction = (
+  masterGainNode: Volume,
+  destination: ToneAudioNode,
+  isOffline: boolean
+) => {
+  // Create effects
+  const reverb = new Reverb({ decay: 3, wet: 0.3 });
+  const chorus = new Chorus({ frequency: 2, depth: 0.5, wet: 0.4 });
+  
+  // Connect chain: masterGain -> reverb -> chorus -> destination
+  masterGainNode.connect(reverb);
+  reverb.connect(chorus);
+  chorus.connect(destination);
+  
+  // Return cleanup function
+  return () => {
+    reverb.dispose();
+    chorus.dispose();
+  };
+};
+
+<WaveformPlaylistProvider 
+  tracks={tracks} 
+  masterEffects={customEffects}
+>
+  <Waveform />
+</WaveformPlaylistProvider>
+```
+
+<Note>
+  The cleanup function is called when the audio graph is rebuilt (e.g., when tracks change). Always dispose of Tone.js nodes to prevent memory leaks.
+</Note>
+
+## Bypass Pattern
+
+The bypass implementation stores the original wet value:
+
+```typescript
+// When bypassing:
+const originalWet = effect.params.wet; // Store current value
+instance.setParameter('wet', 0);       // Set to 0 (bypass)
+
+// When un-bypassing:
+instance.setParameter('wet', originalWet); // Restore original (NOT always 1)
+```
+
+<Warning>
+  Do not set wet to 1 when un-bypassing. This overwrites user settings. Always restore the original wet value from params.
+</Warning>
+
+## Effect Chain Ordering
+
+Effects are connected in series:
+
+```
+masterGainNode -> effect1 -> effect2 -> effect3 -> destination
+```
+
+Reorder effects with `reorderEffects(fromIndex, toIndex)`:
+
+```tsx
+// Move effect from index 2 to index 0 (move to front)
+reorderEffects(2, 0);
+
+// Move effect from index 0 to end
+reorderEffects(0, activeEffects.length - 1);
+```
+
+Order matters:
+- **EQ before distortion** - Shape frequency content before adding harmonics
+- **Distortion before reverb** - Reverb the distorted signal, not vice versa
+- **Compression at the end** - Control final dynamics after all coloration
+
+## Offline Rendering (WAV Export)
+
+Effects hooks provide `createOfflineEffectsFunction()` for WAV export:
+
+```tsx
+const {
+  masterEffects,
+  createOfflineEffectsFunction,
+} = useDynamicEffects();
+
+const { exportWav } = useWavExport();
+
+const handleExport = async () => {
+  const offlineEffects = createOfflineEffectsFunction();
+  
+  const blob = await exportWav({
+    masterEffects: offlineEffects, // Fresh instances for offline context
+  });
+  
+  // Download or save blob
+};
+```
+
+<Accordion title="Why create new effect instances for offline rendering?">
+  Tone.js effects are bound to the AudioContext that created them. The real-time context runs continuously, while offline rendering uses a temporary `OfflineAudioContext`. 
+  
+  `createOfflineEffectsFunction()` creates fresh effect instances in the offline context with the same parameters as the real-time chain. This avoids `AudioContext mismatch` errors.
+  
+  Bypassed effects are automatically excluded from the offline chain.
+</Accordion>
+
+## Real-Time Parameter Updates
+
+Parameter changes take effect immediately without rebuilding the chain:
+
+```tsx
+// Update a parameter - no audio graph rebuild
+updateParameter(instanceId, 'decay', 5.0);
+
+// Add/remove effects - rebuilds chain
+addEffect('reverb');
+removeEffect(instanceId);
+
+// Reorder - rebuilds chain
+reorderEffects(0, 2);
+```
+
+This is achieved through refs:
+
+```typescript
+// useDynamicEffects implementation pattern
+const activeEffectsRef = useRef<ActiveEffect[]>(activeEffects);
+activeEffectsRef.current = activeEffects;
+
+const masterEffects: EffectsFunction = useCallback(
+  (masterGainNode, destination, isOffline) => {
+    // Read from ref at call time - always fresh
+    const effects = activeEffectsRef.current;
+    // ...
+  },
+  [fftSize] // Stable - doesn't change when effects change
+);
+```
+
+## Analyser for Visualization
+
+`useDynamicEffects` includes an analyser node at the end of the chain:
+
+```tsx
+const { analyserRef } = useDynamicEffects();
+
+useEffect(() => {
+  const analyser = analyserRef.current;
+  if (!analyser) return;
+  
+  const dataArray = new Uint8Array(analyser.size);
+  
+  const draw = () => {
+    analyser.getValue(dataArray);
+    // Draw waveform or spectrum
+    requestAnimationFrame(draw);
+  };
+  
+  draw();
+}, [analyserRef]);
+```
+
+The analyser FFT size is configurable:
+
+```tsx
+const { analyserRef } = useDynamicEffects(512); // Default: 256
+```
+
+## Best Practices
+
+1. **Store effect state in parent** - Keep effect configurations in React state for persistence
+2. **Use refs for audio callbacks** - Avoid stale closures by reading from refs in the EffectsFunction
+3. **Dispose on unmount** - Effect hooks handle cleanup automatically, but custom EffectsFunctions must return cleanup functions
+4. **Test offline rendering** - WAV export uses a different code path - always test with `exportWav()`
+5. **Limit concurrent effects** - Too many effects can cause audio dropouts (test with your target hardware)
+6. **Provide bypass UI** - Let users disable effects without removing them
+
+## Type Imports
+
+```typescript
+import type {
+  EffectDefinition,
+  EffectParameter,
+  EffectInstance,
+  ActiveEffect,
+} from '@waveform-playlist/browser';
+
+import type { EffectsFunction } from '@waveform-playlist/playout';
+```

@@ -1,0 +1,368 @@
+---
+title: Clip Types
+description: Type definitions for audio clips in the multi-track model
+---
+
+## AudioClip
+
+Represents a single audio clip on the timeline. All positions and durations are stored as sample counts (integers) to avoid floating-point precision errors.
+
+### Import
+
+```typescript
+import type { AudioClip } from '@waveform-playlist/core';
+```
+
+### Type Definition
+
+```typescript
+interface AudioClip {
+  id: string;
+  audioBuffer?: AudioBuffer;
+  startSample: number;
+  durationSamples: number;
+  offsetSamples: number;
+  sampleRate: number;
+  sourceDurationSamples: number;
+  fadeIn?: Fade;
+  fadeOut?: Fade;
+  gain: number;
+  name?: string;
+  color?: string;
+  waveformData?: WaveformDataObject;
+}
+```
+
+### Properties
+
+<ResponseField name="id" type="string" required>
+  Unique identifier for this clip
+</ResponseField>
+
+<ResponseField name="audioBuffer" type="AudioBuffer">
+  The audio buffer containing the audio data. Optional for peaks-first rendering - can be added later when audio finishes loading. Required for playback and editing operations.
+</ResponseField>
+
+<ResponseField name="startSample" type="number" required>
+  Position on timeline where this clip starts (in samples at timeline sample rate)
+</ResponseField>
+
+<ResponseField name="durationSamples" type="number" required>
+  Duration of this clip in samples - how much of the audio buffer to play
+</ResponseField>
+
+<ResponseField name="offsetSamples" type="number" required>
+  Offset into the audio buffer where playback starts (in samples) - the "trim start" point
+</ResponseField>
+
+<ResponseField name="sampleRate" type="number" required>
+  Sample rate for this clip's audio. Required when audioBuffer is not provided (for peaks-first rendering). When audioBuffer is present, this should match `audioBuffer.sampleRate`.
+</ResponseField>
+
+<ResponseField name="sourceDurationSamples" type="number" required>
+  Total duration of the source audio in samples. Required when audioBuffer is not provided (for trim bounds calculation). When audioBuffer is present, this should equal `audioBuffer.length`.
+</ResponseField>
+
+<ResponseField name="fadeIn" type="Fade">
+  Optional fade in effect. See [Fade Type](#fade-type) below.
+</ResponseField>
+
+<ResponseField name="fadeOut" type="Fade">
+  Optional fade out effect. See [Fade Type](#fade-type) below.
+</ResponseField>
+
+<ResponseField name="gain" type="number" required>
+  Clip-specific gain/volume multiplier (0.0 to 1.0+)
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Optional label/name for this clip
+</ResponseField>
+
+<ResponseField name="color" type="string">
+  Optional color for visual distinction (any CSS color value)
+</ResponseField>
+
+<ResponseField name="waveformData" type="WaveformDataObject">
+  Pre-computed waveform data from [waveform-data.js](https://github.com/bbc/waveform-data.js) library. When provided, the library will use this instead of computing peaks from the audioBuffer. Supports resampling to different zoom levels and slicing for clip trimming.
+</ResponseField>
+
+---
+
+## Fade Type
+
+Defines fade in/out effects for clips.
+
+### Type Definition
+
+```typescript
+interface Fade {
+  duration: number;
+  type?: FadeType;
+}
+
+type FadeType = 'logarithmic' | 'linear' | 'sCurve' | 'exponential';
+```
+
+### Properties
+
+<ResponseField name="duration" type="number" required>
+  Duration of the fade in seconds
+</ResponseField>
+
+<ResponseField name="type" type="FadeType">
+  Type of fade curve. Default: 'linear'
+  
+  - `'linear'` - Linear fade (constant rate)
+  - `'logarithmic'` - Logarithmic curve (natural sounding for audio)
+  - `'exponential'` - Exponential curve
+  - `'sCurve'` - S-curve fade (smooth acceleration/deceleration)
+</ResponseField>
+
+### Example
+
+```typescript
+const fadeIn: Fade = {
+  duration: 0.5,
+  type: 'logarithmic'
+};
+
+const fadeOut: Fade = {
+  duration: 1.0,
+  type: 'sCurve'
+};
+```
+
+---
+
+## Clip Factory Functions
+
+Create new clips with sensible defaults using helper functions.
+
+### createClip (Sample-based)
+
+Create a clip using sample counts.
+
+```typescript
+import { createClip } from '@waveform-playlist/core';
+
+function createClip(options: CreateClipOptions): AudioClip
+```
+
+#### Options
+
+```typescript
+interface CreateClipOptions {
+  audioBuffer?: AudioBuffer;
+  startSample: number;
+  durationSamples?: number;
+  offsetSamples?: number;
+  gain?: number;
+  name?: string;
+  color?: string;
+  fadeIn?: Fade;
+  fadeOut?: Fade;
+  waveformData?: WaveformDataObject;
+  sampleRate?: number;
+  sourceDurationSamples?: number;
+}
+```
+
+#### Example
+
+```typescript
+import { createClip } from '@waveform-playlist/core';
+
+const clip = createClip({
+  audioBuffer: myAudioBuffer,
+  startSample: 44100, // 1 second at 44.1kHz
+  durationSamples: 88200, // 2 seconds
+  offsetSamples: 0,
+  gain: 0.8,
+  name: 'Intro',
+  fadeIn: { duration: 0.1, type: 'logarithmic' }
+});
+```
+
+---
+
+### createClipFromSeconds (Time-based)
+
+Create a clip using seconds (convenience function). Internally converts to samples.
+
+```typescript
+import { createClipFromSeconds } from '@waveform-playlist/core';
+
+function createClipFromSeconds(options: CreateClipOptionsSeconds): AudioClip
+```
+
+#### Options
+
+```typescript
+interface CreateClipOptionsSeconds {
+  audioBuffer?: AudioBuffer;
+  startTime: number;
+  duration?: number;
+  offset?: number;
+  gain?: number;
+  name?: string;
+  color?: string;
+  fadeIn?: Fade;
+  fadeOut?: Fade;
+  waveformData?: WaveformDataObject;
+  sampleRate?: number;
+  sourceDuration?: number;
+}
+```
+
+#### Example
+
+```typescript
+import { createClipFromSeconds } from '@waveform-playlist/core';
+
+const clip = createClipFromSeconds({
+  audioBuffer: myAudioBuffer,
+  startTime: 1.0, // 1 second
+  duration: 2.0, // 2 seconds
+  offset: 0.5, // Start playing from 0.5s into the buffer
+  gain: 1.0,
+  name: 'Verse',
+  fadeOut: { duration: 0.5, type: 'sCurve' }
+});
+```
+
+---
+
+## Peaks-First Rendering
+
+Clips can be created with just `waveformData` (without `audioBuffer`) for instant visual rendering while audio loads in the background.
+
+### Example
+
+```typescript
+import { createClipFromSeconds } from '@waveform-playlist/core';
+import WaveformData from 'waveform-data';
+
+// Load pre-computed peaks from .dat file
+const response = await fetch('/audio/track1.dat');
+const arrayBuffer = await response.arrayBuffer();
+const waveformData = WaveformData.create(arrayBuffer);
+
+// Create clip with peaks only - renders instantly
+const clip = createClipFromSeconds({
+  waveformData,
+  startTime: 0,
+  // sampleRate and sourceDuration are derived from waveformData automatically
+});
+
+// Add audio buffer later when it finishes loading
+const audioResponse = await fetch('/audio/track1.mp3');
+const audioArrayBuffer = await audioResponse.arrayBuffer();
+const audioBuffer = await audioContext.decodeAudioData(audioArrayBuffer);
+
+clip.audioBuffer = audioBuffer;
+```
+
+<Note>
+  When using peaks-first rendering, either provide `audioBuffer` OR all of: `sampleRate`, `sourceDurationSamples` (or `sourceDuration`), and `waveformData`.
+</Note>
+
+---
+
+## WaveformDataObject
+
+Interface for waveform data from the [waveform-data.js](https://github.com/bbc/waveform-data.js) library.
+
+### Type Definition
+
+```typescript
+interface WaveformDataObject {
+  readonly sample_rate: number;
+  readonly scale: number;
+  readonly length: number;
+  readonly bits: number;
+  readonly duration: number;
+  readonly channels: number;
+  channel: (index: number) => {
+    min_array: () => number[];
+    max_array: () => number[];
+  };
+  resample: (options: { scale: number } | { width: number }) => WaveformDataObject;
+  slice: (
+    options: { startTime: number; endTime: number } | { startIndex: number; endIndex: number }
+  ) => WaveformDataObject;
+}
+```
+
+---
+
+## Utility Functions
+
+The core package provides utility functions for working with clips.
+
+### getClipsInRange
+
+Get all clips within a sample range.
+
+```typescript
+import { getClipsInRange } from '@waveform-playlist/core';
+
+function getClipsInRange(
+  track: ClipTrack,
+  startSample: number,
+  endSample: number
+): AudioClip[]
+```
+
+### getClipsAtSample
+
+Get all clips at a specific sample position.
+
+```typescript
+import { getClipsAtSample } from '@waveform-playlist/core';
+
+function getClipsAtSample(track: ClipTrack, sample: number): AudioClip[]
+```
+
+### clipsOverlap
+
+Check if two clips overlap.
+
+```typescript
+import { clipsOverlap } from '@waveform-playlist/core';
+
+function clipsOverlap(clip1: AudioClip, clip2: AudioClip): boolean
+```
+
+### sortClipsByTime
+
+Sort clips by start time.
+
+```typescript
+import { sortClipsByTime } from '@waveform-playlist/core';
+
+function sortClipsByTime(clips: AudioClip[]): AudioClip[]
+```
+
+### findGaps
+
+Find silent regions (gaps) between clips on a track.
+
+```typescript
+import { findGaps } from '@waveform-playlist/core';
+
+interface Gap {
+  startSample: number;
+  endSample: number;
+  durationSamples: number;
+}
+
+function findGaps(track: ClipTrack): Gap[]
+```
+
+---
+
+## Related Types
+
+- [Track Types](/api/types/tracks) - ClipTrack interface and track management
+- [Effects Types](/api/types/effects) - Audio effects for tracks

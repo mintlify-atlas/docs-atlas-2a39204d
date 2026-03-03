@@ -1,0 +1,92 @@
+---
+title: Introduction
+description: A multi-track Web Audio editor built with React, Tone.js, and the Web Audio API
+---
+
+Waveform Playlist is a multi-track audio editor and player built with React, Tone.js, and the Web Audio API. It features canvas-based waveform visualization, drag-and-drop clip editing, and professional audio effects.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get up and running with a basic waveform player in minutes
+  </Card>
+  <Card title="Installation" icon="download" href="/installation">
+    Install the library and its peer dependencies
+  </Card>
+  <Card title="Live examples" icon="code" href="https://naomiaro.github.io/waveform-playlist/examples/stem-tracks">
+    Explore interactive demos and code samples
+  </Card>
+  <Card title="API reference" icon="book" href="/api/provider">
+    Detailed documentation for all components and hooks
+  </Card>
+</CardGroup>
+
+## Key features
+
+<CardGroup cols={2}>
+  <Card title="Multi-track editing" icon="layer-group">
+    Multiple clips per track with drag-to-move and trim functionality for professional audio editing workflows
+  </Card>
+  <Card title="Waveform visualization" icon="wave-square">
+    Canvas-based rendering with zoom controls and real-time playback animation
+  </Card>
+  <Card title="20+ audio effects" icon="wand-magic-sparkles">
+    Reverb, delay, filters, distortion, and more via Tone.js with real-time parameter control
+  </Card>
+  <Card title="Recording" icon="microphone">
+    AudioWorklet-based recording with live waveform preview and VU meter
+  </Card>
+  <Card title="Export" icon="file-export">
+    WAV export with effects applied, export individual tracks or full mix
+  </Card>
+  <Card title="Annotations" icon="note-sticky">
+    Time-synced text annotations with keyboard navigation and playback integration
+  </Card>
+  <Card title="Theming" icon="palette">
+    Full theme customization with dark/light mode support and gradient colors
+  </Card>
+  <Card title="TypeScript" icon="code">
+    Full type definitions included for enhanced developer experience
+  </Card>
+</CardGroup>
+
+## Architecture
+
+Waveform Playlist is designed as a modular monorepo with separate packages for different functionalities:
+
+- **@waveform-playlist/browser** - Main React components, hooks, and context
+- **@waveform-playlist/core** - Types, utilities, and clip/track creation
+- **@waveform-playlist/ui-components** - Styled UI components (buttons, sliders, etc.)
+- **@waveform-playlist/playout** - Tone.js audio engine
+- **@waveform-playlist/annotations** - Optional annotation support
+- **@waveform-playlist/recording** - Optional recording support (requires AudioWorklet setup)
+
+## Browser support
+
+Waveform Playlist requires Web Audio API support, which is available in all modern browsers:
+
+- Chrome (desktop and mobile)
+- Firefox (desktop and mobile)
+- Safari (desktop and mobile)
+- Edge (Chromium-based)
+
+<Note>
+  See [Can I Use: Web Audio API](https://caniuse.com/audio-api) for detailed browser compatibility information.
+</Note>
+
+<Warning>
+  The Web Audio API requires user interaction (such as a button click) to initialize the AudioContext. Waveform Playlist handles this automatically when you call `play()` for the first time.
+</Warning>
+
+## Next steps
+
+<Steps>
+  <Step title="Install the library">
+    Follow the [installation guide](/installation) to add Waveform Playlist to your project
+  </Step>
+  <Step title="Build your first player">
+    Complete the [quickstart tutorial](/quickstart) to create a working waveform player
+  </Step>
+  <Step title="Explore examples">
+    Check out the [live examples](https://naomiaro.github.io/waveform-playlist/examples/stem-tracks) to see what's possible
+  </Step>
+</Steps>

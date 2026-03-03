@@ -1,122 +1,143 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Waveform Playlist",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#63C75F",
+    "light": "#c49a6c",
+    "dark": "#d08070"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/naomiaro/waveform-playlist"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/naomiaro/waveform-playlist"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Getting Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "introduction",
+              "installation",
+              "quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/architecture",
+              "concepts/tracks-and-clips",
+              "concepts/audio-engine",
+              "concepts/theming"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Guides",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "guides/loading-audio",
+              "guides/playback-controls",
+              "guides/multi-track-editing",
+              "guides/drag-and-drop",
+              "guides/audio-effects",
+              "guides/recording",
+              "guides/annotations",
+              "guides/export-wav",
+              "guides/keyboard-shortcuts",
+              "guides/zoom-controls"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Advanced",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "advanced/custom-themes",
+              "advanced/custom-effects",
+              "advanced/media-element-provider",
+              "advanced/performance-optimization",
+              "advanced/browser-compatibility"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Packages",
             "pages": [
-              "api-reference/introduction"
+              "api/packages/browser",
+              "api/packages/core",
+              "api/packages/ui-components",
+              "api/packages/playout",
+              "api/packages/annotations",
+              "api/packages/recording"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Providers & Context",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/providers/waveform-playlist-provider",
+              "api/providers/media-element-provider",
+              "api/providers/annotation-provider"
+            ]
+          },
+          {
+            "group": "Hooks",
+            "pages": [
+              "api/hooks/playback",
+              "api/hooks/audio-tracks",
+              "api/hooks/effects",
+              "api/hooks/recording",
+              "api/hooks/zoom-controls",
+              "api/hooks/keyboard-shortcuts",
+              "api/hooks/export"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "api/components/waveform",
+              "api/components/playback-controls",
+              "api/components/effects-controls",
+              "api/components/recording-controls",
+              "api/components/annotation-controls"
+            ]
+          },
+          {
+            "group": "Types & Interfaces",
+            "pages": [
+              "api/types/tracks",
+              "api/types/clips",
+              "api/types/effects",
+              "api/types/annotations"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "groups": [
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/stem-tracks",
+              "examples/multi-clip-editing",
+              "examples/audio-effects",
+              "examples/recording",
+              "examples/annotations",
+              "examples/waveform-data"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

@@ -1,0 +1,362 @@
+---
+title: Zoom Controls
+description: Control waveform zoom level with samplesPerPixel adjustments
+---
+
+# Zoom Controls
+
+The `useZoomControls` hook manages waveform zoom via the PlaylistEngine, with state mirrored from engine events.
+
+## Basic Usage
+
+```typescript
+import { usePlaylistControls, usePlaylistData } from '@waveform-playlist/browser';
+
+function ZoomButtons() {
+  const { zoomIn, zoomOut } = usePlaylistControls();
+  const { samplesPerPixel, canZoomIn, canZoomOut } = usePlaylistData();
+
+  return (
+    <div>
+      <button onClick={zoomIn} disabled={!canZoomIn}>
+        Zoom In
+      </button>
+      <button onClick={zoomOut} disabled={!canZoomOut}>
+        Zoom Out
+      </button>
+      <div>Zoom: {samplesPerPixel} samples/pixel</div>
+    </div>
+  );
+}
+```
+
+## Hook Interface
+
+The hook is used internally by `WaveformPlaylistProvider`. Access via context hooks:
+
+```typescript
+// From usePlaylistControls:
+interface ZoomControls {
+  zoomIn: () => void;
+  zoomOut: () => void;
+}
+
+// From usePlaylistData:
+interface ZoomState {
+  samplesPerPixel: number;     // Current zoom level
+  canZoomIn: boolean;          // Can zoom in further
+  canZoomOut: boolean;         // Can zoom out further
+}
+```
+
+Location: `packages/browser/src/hooks/useZoomControls.ts:4-10`
+
+## Zoom In/Out
+
+Zoom operations delegate to the engine:
+
+```typescript
+const { zoomIn, zoomOut } = usePlaylistControls();
+
+// Zoom in (increase detail)
+zoomIn();
+
+// Zoom out (decrease detail)
+zoomOut();
+```
+
+The engine automatically:
+- Calculates new `samplesPerPixel` value (halves for zoom in, doubles for zoom out)
+- Enforces min/max zoom bounds
+- Updates `canZoomIn` / `canZoomOut` flags
+- Emits `statechange` event
+
+Location: `packages/browser/src/hooks/useZoomControls.ts:44-50`
+
+## Samples Per Pixel
+
+The zoom level is represented by `samplesPerPixel`:
+
+```typescript
+const { samplesPerPixel } = usePlaylistData();
+
+// Lower values = more detail (zoomed in)
+// samplesPerPixel: 100 → Very zoomed in
+
+// Higher values = less detail (zoomed out)
+// samplesPerPixel: 10000 → Very zoomed out
+```
+
+This value determines how many audio samples are rendered per horizontal pixel.
+
+## Initial Zoom Level
+
+Set the initial zoom when creating the playlist:
+
+```typescript
+function Playlist() {
+  const [samplesPerPixel] = useState(4096);  // Initial zoom level
+
+  return (
+    <WaveformPlaylistProvider
+      tracks={tracks}
+      samplesPerPixel={samplesPerPixel}
+    >
+      {/* Playlist UI */}
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+Location: `packages/browser/src/hooks/useZoomControls.ts:14`
+
+## Zoom Boundaries
+
+The engine enforces zoom limits:
+
+```typescript
+const { canZoomIn, canZoomOut } = usePlaylistData();
+
+// canZoomIn: false when at maximum detail
+// canZoomOut: false when at minimum detail
+
+if (canZoomIn) {
+  zoomIn();  // Safe to zoom in
+}
+
+if (canZoomOut) {
+  zoomOut();  // Safe to zoom out
+}
+```
+
+Location: `packages/browser/src/hooks/useZoomControls.ts:8-9`
+
+## Zoom with Keyboard Shortcuts
+
+```typescript
+import { useKeyboardShortcuts, usePlaylistControls } from '@waveform-playlist/browser';
+
+function ZoomShortcuts() {
+  const { zoomIn, zoomOut } = usePlaylistControls();
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      { key: '=', action: zoomIn, description: 'Zoom in' },
+      { key: '-', action: zoomOut, description: 'Zoom out' },
+      { key: '=', ctrlKey: true, action: zoomIn, description: 'Zoom in (Ctrl)' },
+      { key: '-', ctrlKey: true, action: zoomOut, description: 'Zoom out (Ctrl)' },
+    ],
+  });
+
+  return null;
+}
+```
+
+## Zoom Slider
+
+Create a custom zoom slider:
+
+```typescript
+import { usePlaylistData } from '@waveform-playlist/browser';
+
+function ZoomSlider() {
+  const { samplesPerPixel, playoutRef } = usePlaylistData();
+
+  // Define zoom levels (powers of 2)
+  const zoomLevels = [100, 200, 400, 800, 1600, 3200, 6400, 12800];
+  const currentIndex = zoomLevels.findIndex((level) => level >= samplesPerPixel);
+
+  const handleZoomChange = (index: number) => {
+    const newSamplesPerPixel = zoomLevels[index];
+    // Call engine method directly
+    playoutRef.current?.setZoom(newSamplesPerPixel);
+  };
+
+  return (
+    <div>
+      <input
+        type="range"
+        min={0}
+        max={zoomLevels.length - 1}
+        value={currentIndex}
+        onChange={(e) => handleZoomChange(Number(e.target.value))}
+      />
+      <div>Zoom: {samplesPerPixel} samples/pixel</div>
+    </div>
+  );
+}
+```
+
+## State Synchronization
+
+Zoom state flows from engine to React:
+
+```
+1. User calls zoomIn()
+2. Hook delegates to engine.zoomIn()
+3. Engine calculates new samplesPerPixel
+4. Engine emits 'statechange' event
+5. Hook's onEngineState() updates React state
+6. Component re-renders with new value
+```
+
+Location: `packages/browser/src/hooks/useZoomControls.ts:53-68`
+
+## Non-Blocking Updates
+
+Zoom updates use `startTransition` to avoid blocking playback:
+
+```typescript
+import { startTransition } from 'react';
+
+const onEngineState = (state: EngineState) => {
+  if (state.samplesPerPixel !== samplesPerPixelRef.current) {
+    samplesPerPixelRef.current = state.samplesPerPixel;
+    startTransition(() => {
+      setSamplesPerPixel(state.samplesPerPixel);  // Non-urgent update
+    });
+  }
+};
+```
+
+This allows requestAnimationFrame playback callbacks to interleave with zoom re-renders.
+
+Location: `packages/browser/src/hooks/useZoomControls.ts:54-58`
+
+## Web Worker Peak Generation
+
+Peak data is generated in a web worker at load time, then resampled on zoom:
+
+```typescript
+// At load time:
+// - Worker generates high-resolution peaks (e.g., 256 samples/pixel)
+// - Cached in memory
+
+// On zoom change:
+// - resample() creates new peaks at target resolution
+// - Near-instant (no worker needed)
+```
+
+This enables smooth zoom without re-processing audio on every change.
+
+Location: `packages/browser/CLAUDE.md` (Web Worker Peak Generation section)
+
+## Example: Zoom Toolbar
+
+```typescript
+import { usePlaylistControls, usePlaylistData } from '@waveform-playlist/browser';
+
+function ZoomToolbar() {
+  const { zoomIn, zoomOut } = usePlaylistControls();
+  const { samplesPerPixel, canZoomIn, canZoomOut } = usePlaylistData();
+
+  const zoomLevels = [
+    { label: '1x', value: 100 },
+    { label: '2x', value: 200 },
+    { label: '4x', value: 400 },
+    { label: '8x', value: 800 },
+    { label: '16x', value: 1600 },
+    { label: '32x', value: 3200 },
+  ];
+
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <button onClick={zoomOut} disabled={!canZoomOut}>
+        -
+      </button>
+      
+      <div style={{ display: 'flex', gap: 4 }}>
+        {zoomLevels.map((level) => (
+          <button
+            key={level.value}
+            onClick={() => {
+              // Calculate zoom steps needed
+              const currentLevel = samplesPerPixel;
+              if (level.value < currentLevel) {
+                // Zoom in
+                while (samplesPerPixel > level.value && canZoomIn) {
+                  zoomIn();
+                }
+              } else if (level.value > currentLevel) {
+                // Zoom out
+                while (samplesPerPixel < level.value && canZoomOut) {
+                  zoomOut();
+                }
+              }
+            }}
+            style={{
+              fontWeight: Math.abs(samplesPerPixel - level.value) < 10 ? 'bold' : 'normal',
+            }}
+          >
+            {level.label}
+          </button>
+        ))}
+      </div>
+      
+      <button onClick={zoomIn} disabled={!canZoomIn}>
+        +
+      </button>
+      
+      <div style={{ fontSize: 12, color: '#666' }}>
+        {samplesPerPixel} samples/px
+      </div>
+    </div>
+  );
+}
+```
+
+## Zoom to Fit
+
+Fit the entire waveform in the viewport:
+
+```typescript
+function ZoomToFit() {
+  const { duration } = usePlaylistData();
+  const { playoutRef } = usePlaylistData();
+  
+  const zoomToFit = () => {
+    const viewportWidth = window.innerWidth;
+    const totalSamples = duration * 44100;  // Assuming 44.1kHz
+    const samplesPerPixel = Math.ceil(totalSamples / viewportWidth);
+    
+    playoutRef.current?.setZoom(samplesPerPixel);
+  };
+
+  return <button onClick={zoomToFit}>Fit to Screen</button>;
+}
+```
+
+## Zoom to Selection
+
+Zoom to show only the selected region:
+
+```typescript
+function ZoomToSelection() {
+  const { selectionStart, selectionEnd } = usePlaylistState();
+  const { playoutRef } = usePlaylistData();
+  
+  const zoomToSelection = () => {
+    const selectionDuration = selectionEnd - selectionStart;
+    const viewportWidth = window.innerWidth;
+    const selectionSamples = selectionDuration * 44100;
+    const samplesPerPixel = Math.ceil(selectionSamples / viewportWidth);
+    
+    playoutRef.current?.setZoom(samplesPerPixel);
+  };
+
+  return (
+    <button 
+      onClick={zoomToSelection}
+      disabled={selectionStart === selectionEnd}
+    >
+      Zoom to Selection
+    </button>
+  );
+}
+```
+
+## Next Steps
+
+- [Keyboard Shortcuts](/guides/keyboard-shortcuts) - Add zoom keyboard shortcuts
+- [Loading Audio](/guides/loading-audio) - Understand peak generation
+- [Multi-Track Editing](/guides/multi-track-editing) - Edit at different zoom levels

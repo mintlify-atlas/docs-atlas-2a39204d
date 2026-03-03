@@ -1,0 +1,160 @@
+---
+title: Installation
+description: Install Waveform Playlist and its peer dependencies
+---
+
+Waveform Playlist is distributed as npm packages. The main package `@waveform-playlist/browser` provides React components and hooks for building waveform-based audio applications.
+
+## Install the core packages
+
+Install the main package along with its required peer dependencies:
+
+<CodeGroup>
+```bash npm
+npm install @waveform-playlist/browser tone @dnd-kit/core @dnd-kit/modifiers react styled-components
+```
+
+```bash yarn
+yarn add @waveform-playlist/browser tone @dnd-kit/core @dnd-kit/modifiers react styled-components
+```
+
+```bash pnpm
+pnpm add @waveform-playlist/browser tone @dnd-kit/core @dnd-kit/modifiers react styled-components
+```
+</CodeGroup>
+
+<Note>
+  If you already have React installed in your project, you can omit it from the installation command.
+</Note>
+
+## Peer dependencies explained
+
+Waveform Playlist requires several peer dependencies that you must install separately:
+
+### Required dependencies
+
+<AccordionGroup>
+  <Accordion title="tone (^15.0.0)">
+    [Tone.js](https://tonejs.github.io/) is a Web Audio framework that powers the audio playback engine. Waveform Playlist uses Tone.js for:
+    - Audio transport and scheduling
+    - Audio effects (reverb, delay, filters, etc.)
+    - Master volume and panning
+    - Offline rendering for WAV export
+  </Accordion>
+
+  <Accordion title="@dnd-kit/core (^6.0.0) and @dnd-kit/modifiers (^9.0.0)">
+    [@dnd-kit](https://dndkit.com/) is a modern drag-and-drop library for React. Waveform Playlist uses it for:
+    - Drag-to-move clips between tracks
+    - Drag-to-trim clip boundaries
+    - Drag-to-create and edit annotations
+    
+    Both packages are required for full drag-and-drop functionality.
+  </Accordion>
+
+  <Accordion title="react (^18.2.0 || ^19.0.0)">
+    Waveform Playlist is built with React and requires React 18.2.0 or higher. React 19 is also supported.
+  </Accordion>
+
+  <Accordion title="styled-components (^6.0.0)">
+    [styled-components](https://styled-components.com/) is used for component styling and theming. All UI components support customization through the theme system.
+  </Accordion>
+</AccordionGroup>
+
+## Optional packages
+
+Depending on your use case, you may want to install these optional packages:
+
+### Annotations
+
+For time-synced text annotations with keyboard navigation:
+
+<CodeGroup>
+```bash npm
+npm install @waveform-playlist/annotations
+```
+
+```bash yarn
+yarn add @waveform-playlist/annotations
+```
+
+```bash pnpm
+pnpm add @waveform-playlist/annotations
+```
+</CodeGroup>
+
+<Tip>
+  See the [annotations guide](/guides/annotations) for setup instructions and examples.
+</Tip>
+
+### Recording
+
+For AudioWorklet-based audio recording with live waveform preview:
+
+<CodeGroup>
+```bash npm
+npm install @waveform-playlist/recording
+```
+
+```bash yarn
+yarn add @waveform-playlist/recording
+```
+
+```bash pnpm
+pnpm add @waveform-playlist/recording
+```
+</CodeGroup>
+
+<Warning>
+  Recording requires additional AudioWorklet setup. See the [recording guide](/guides/recording) for complete setup instructions.
+</Warning>
+
+## Package versions
+
+All `@waveform-playlist/*` packages use synchronized versioning. When installing, make sure all packages are on the same version (e.g., all `8.1.0`).
+
+```json package.json
+{
+  "dependencies": {
+    "@waveform-playlist/browser": "^8.1.0",
+    "@waveform-playlist/annotations": "^8.1.0",
+    "@waveform-playlist/recording": "^8.1.0",
+    "tone": "^15.0.0",
+    "@dnd-kit/core": "^6.0.0",
+    "@dnd-kit/modifiers": "^9.0.0",
+    "react": "^18.2.0",
+    "styled-components": "^6.0.0"
+  }
+}
+```
+
+## TypeScript setup
+
+Waveform Playlist is written in TypeScript and includes full type definitions. No additional `@types` packages are needed.
+
+If you're using TypeScript, ensure your `tsconfig.json` includes:
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}
+```
+
+## Verify installation
+
+To verify your installation is complete, try importing the main components:
+
+```tsx App.tsx
+import { WaveformPlaylistProvider, Waveform, PlayButton } from '@waveform-playlist/browser';
+
+// If this compiles without errors, you're ready to go!
+```
+
+## Next steps
+
+<Card title="Quickstart" icon="rocket" href="/quickstart">
+  Build your first waveform player with a complete working example
+</Card>

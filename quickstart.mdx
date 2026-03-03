@@ -1,80 +1,273 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get started with Waveform Playlist in minutes
 ---
 
-## Get started in three steps
+Get up and running with Waveform Playlist in just a few steps. This guide will walk you through creating a basic audio player with waveform visualization.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before you begin, make sure you have:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+- Node.js 16+ installed
+- A React 18+ or React 19 project
+- Basic knowledge of React hooks
 
-### Step 2: Deploy your changes
+## Installation
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+<Steps>
+  <Step title="Install the package">
+    Install the main browser package along with required peer dependencies:
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    <CodeGroup>
+    ```bash npm
+    npm install @waveform-playlist/browser tone @dnd-kit/core @dnd-kit/modifiers react react-dom styled-components
+    ```
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```bash yarn
+    yarn add @waveform-playlist/browser tone @dnd-kit/core @dnd-kit/modifiers react react-dom styled-components
+    ```
 
-### Step 3: Go live
+    ```bash pnpm
+    pnpm add @waveform-playlist/browser tone @dnd-kit/core @dnd-kit/modifiers react react-dom styled-components
+    ```
+    </CodeGroup>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    <Note>
+      The peer dependencies are required:
+      - **tone** (^15.0.0) - Audio engine powered by Tone.js
+      - **@dnd-kit/core** and **@dnd-kit/modifiers** - Drag-and-drop functionality
+      - **react** and **react-dom** (^18.2.0 || ^19.0.0)
+      - **styled-components** (^6.0.0) - Styling
+    </Note>
+  </Step>
 
-## Next steps
+  <Step title="Create a basic player component">
+    Create a new component file (e.g., `AudioPlayer.tsx`) with the following code:
 
-Now that you have your docs running, explore these key features:
+    ```tsx
+    import { useState, useEffect } from 'react';
+    import { 
+      WaveformPlaylistProvider, 
+      Waveform, 
+      PlayButton, 
+      PauseButton, 
+      StopButton 
+    } from '@waveform-playlist/browser';
+    import { createTrack, createClipFromSeconds } from '@waveform-playlist/core';
+
+    function AudioPlayer() {
+      const [tracks, setTracks] = useState([]);
+
+      useEffect(() => {
+        async function loadAudio() {
+          // Fetch audio file
+          const response = await fetch('/audio/song.mp3');
+          const arrayBuffer = await response.arrayBuffer();
+          
+          // Decode audio data
+          const audioContext = new AudioContext();
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+          // Create track with clip
+          const track = createTrack({
+            name: 'My Track',
+            clips: [createClipFromSeconds({ audioBuffer, startTime: 0 })],
+          });
+
+          setTracks([track]);
+        }
+        
+        loadAudio();
+      }, []);
+
+      return (
+        <WaveformPlaylistProvider tracks={tracks}>
+          <div>
+            <PlayButton />
+            <PauseButton />
+            <StopButton />
+          </div>
+          <Waveform />
+        </WaveformPlaylistProvider>
+      );
+    }
+
+    export default AudioPlayer;
+    ```
+
+    <Tip>
+      Replace `/audio/song.mp3` with the path to your audio file. The file can be an MP3, WAV, OGG, or any format supported by the Web Audio API.
+    </Tip>
+  </Step>
+
+  <Step title="Use the component">
+    Import and use your `AudioPlayer` component in your app:
+
+    ```tsx
+    import AudioPlayer from './AudioPlayer';
+
+    function App() {
+      return (
+        <div>
+          <h1>My Audio Player</h1>
+          <AudioPlayer />
+        </div>
+      );
+    }
+    ```
+  </Step>
+
+  <Step title="Run your app">
+    Start your development server:
+
+    ```bash
+    npm run dev
+    ```
+
+    You should see a waveform visualization with play, pause, and stop buttons!
+  </Step>
+</Steps>
+
+## What's Next?
+
+Now that you have a basic player running, explore more features:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Load multiple tracks" icon="music" href="/guides/loading-audio">
+    Learn how to load and manage multiple audio tracks
+  </Card>
+  
+  <Card title="Add effects" icon="wand-magic-sparkles" href="/guides/audio-effects">
+    Apply 20+ audio effects powered by Tone.js
+  </Card>
+  
+  <Card title="Enable recording" icon="microphone" href="/guides/recording">
+    Record audio directly in the browser
+  </Card>
+  
+  <Card title="Add annotations" icon="comment" href="/guides/annotations">
+    Add time-synced text annotations
+  </Card>
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+## Using with `useAudioTracks`
+
+For a more robust loading approach with error handling and loading states, use the `useAudioTracks` hook:
+
+```tsx
+import { useState } from 'react';
+import { 
+  WaveformPlaylistProvider, 
+  Waveform, 
+  useAudioTracks,
+  PlayButton,
+  PauseButton,
+  StopButton
+} from '@waveform-playlist/browser';
+
+function AudioPlayer() {
+  const { tracks, loading, error } = useAudioTracks([
+    { src: '/audio/vocals.mp3', name: 'Vocals' },
+    { src: '/audio/drums.mp3', name: 'Drums' },
+    { src: '/audio/bass.mp3', name: 'Bass' },
+  ]);
+
+  if (loading) return <div>Loading tracks...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+
+  return (
+    <WaveformPlaylistProvider tracks={tracks}>
+      <div>
+        <PlayButton />
+        <PauseButton />
+        <StopButton />
+      </div>
+      <Waveform />
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+<Tip>
+  The `useAudioTracks` hook handles fetching, decoding, and track creation automatically. It also provides loading states and error handling.
+</Tip>
+
+## Customizing the Waveform
+
+You can customize the appearance of the waveform using theme props:
+
+```tsx
+const customTheme = {
+  waveOutlineColor: '#63C75F',
+  waveFillColor: '#c49a6c',
+  timeColor: '#d08070',
+  backgroundColor: '#1a1a1a',
+};
+
+<WaveformPlaylistProvider tracks={tracks} theme={customTheme}>
+  <Waveform />
+</WaveformPlaylistProvider>
+```
+
+Learn more about theming in the [Theming Guide](/concepts/theming).
+
+## Adding Zoom Controls
+
+Add zoom in/out buttons to navigate long audio files:
+
+```tsx
+import { ZoomInButton, ZoomOutButton } from '@waveform-playlist/browser';
+
+<WaveformPlaylistProvider tracks={tracks}>
+  <div>
+    <PlayButton />
+    <PauseButton />
+    <StopButton />
+    <ZoomInButton />
+    <ZoomOutButton />
+  </div>
+  <Waveform />
+</WaveformPlaylistProvider>
+```
+
+## Troubleshooting
+
+<Accordion title="Waveform not rendering">
+  Make sure you have:
+  - Installed all peer dependencies (`tone`, `@dnd-kit/core`, `@dnd-kit/modifiers`, `styled-components`)
+  - Wrapped components in `WaveformPlaylistProvider`
+  - Provided valid `tracks` prop to the provider
+</Accordion>
+
+<Accordion title="Audio not playing">
+  Check that:
+  - Your audio file path is correct
+  - The audio file format is supported by your browser
+  - There are no CORS issues (audio file must be served from same origin or have CORS headers)
+  - AudioContext is resumed (modern browsers require user interaction before playing audio)
+</Accordion>
+
+<Accordion title="TypeScript errors">
+  If you're using TypeScript, make sure you have the type definitions installed. They're included with the package, but you may need to add `"moduleResolution": "node"` to your `tsconfig.json`.
+</Accordion>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Core concepts" icon="book" href="/concepts/architecture">
+    Understand how Waveform Playlist works
+  </Card>
+  
+  <Card title="API reference" icon="code" href="/api/providers/waveform-playlist-provider">
+    Explore the complete API
+  </Card>
+  
+  <Card title="View examples" icon="play" href="/examples/stem-tracks">
+    See live examples and demos
+  </Card>
+  
+  <Card title="GitHub" icon="github" href="https://github.com/naomiaro/waveform-playlist">
+    View source code and contribute
+  </Card>
+</CardGroup>

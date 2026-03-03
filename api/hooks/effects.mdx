@@ -1,0 +1,392 @@
+---
+title: Effects Hooks
+description: React hooks for managing dynamic audio effects chains with real-time parameter updates
+---
+
+Effects hooks provide runtime control over audio effects chains. Master effects apply to the entire mix, while track effects apply to individual tracks.
+
+## useDynamicEffects
+
+Manage a dynamic master effects chain with real-time parameter updates.
+
+### Import
+
+```typescript
+import { useDynamicEffects } from '@waveform-playlist/browser';
+import type { ActiveEffect, UseDynamicEffectsReturn } from '@waveform-playlist/browser';
+```
+
+### Usage
+
+```typescript
+function EffectsPanel() {
+  const {
+    activeEffects,
+    availableEffects,
+    addEffect,
+    removeEffect,
+    updateParameter,
+    toggleBypass,
+    masterEffects,
+    analyserRef,
+  } = useDynamicEffects(256); // FFT size for analyser
+
+  return (
+    <div>
+      <select onChange={(e) => addEffect(e.target.value)}>
+        <option value="">Add Effect...</option>
+        {availableEffects.map((effect) => (
+          <option key={effect.id} value={effect.id}>
+            {effect.name}
+          </option>
+        ))}
+      </select>
+
+      {activeEffects.map((effect) => (
+        <div key={effect.instanceId}>
+          <h3>{effect.definition.name}</h3>
+          <button onClick={() => toggleBypass(effect.instanceId)}>
+            {effect.bypassed ? 'Enable' : 'Bypass'}
+          </button>
+          <button onClick={() => removeEffect(effect.instanceId)}>Remove</button>
+
+          {effect.definition.parameters.map((param) => (
+            <div key={param.name}>
+              <label>{param.label}</label>
+              <input
+                type="range"
+                min={param.min}
+                max={param.max}
+                step={param.step}
+                value={effect.params[param.name] as number}
+                onChange={(e) =>
+                  updateParameter(effect.instanceId, param.name, parseFloat(e.target.value))
+                }
+              />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Pass masterEffects to WaveformPlaylistProvider
+<WaveformPlaylistProvider tracks={tracks} effectsFunction={masterEffects}>
+  <EffectsPanel />
+</WaveformPlaylistProvider>
+```
+
+### Parameters
+
+<ParamField path="fftSize" type="number" default={256}>
+  FFT size for the built-in analyser node (used for visualization).
+</ParamField>
+
+### Return Value
+
+<ResponseField name="activeEffects" type="ActiveEffect[]">
+  Array of currently active effects in the chain.
+  
+  ```typescript
+  interface ActiveEffect {
+    instanceId: string;
+    effectId: string;
+    definition: EffectDefinition;
+    params: Record<string, number | string | boolean>;
+    bypassed: boolean;
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="availableEffects" type="EffectDefinition[]">
+  Array of all available effect definitions. Includes 20 Tone.js effects organized by category (Reverb, Delay, Modulation, Filter, Distortion, Dynamics, Spatial).
+</ResponseField>
+
+<ResponseField name="addEffect" type="(effectId: string) => void">
+  Add an effect to the end of the chain. Creates a new instance with default parameters.
+</ResponseField>
+
+<ResponseField name="removeEffect" type="(instanceId: string) => void">
+  Remove an effect from the chain by instance ID. Disposes the effect and rebuilds the audio graph.
+</ResponseField>
+
+<ResponseField name="updateParameter" type="(instanceId: string, paramName: string, value: number | string | boolean) => void">
+  Update an effect parameter in real-time. No audio graph rebuild required.
+</ResponseField>
+
+<ResponseField name="toggleBypass" type="(instanceId: string) => void">
+  Bypass or un-bypass an effect. When bypassed, sets `wet` to 0. When un-bypassed, restores the original `wet` value.
+</ResponseField>
+
+<ResponseField name="reorderEffects" type="(fromIndex: number, toIndex: number) => void">
+  Reorder effects in the chain. Rebuilds the audio graph with the new order.
+</ResponseField>
+
+<ResponseField name="clearAllEffects" type="() => void">
+  Remove all effects from the chain. Disposes all effect instances.
+</ResponseField>
+
+<ResponseField name="masterEffects" type="EffectsFunction">
+  Effects function to pass to `WaveformPlaylistProvider`. This is a stable function that reads from refs at call time.
+  
+  ```typescript
+  (masterGainNode, destination, isOffline) => void | (() => void)
+  ```
+</ResponseField>
+
+<ResponseField name="createOfflineEffectsFunction" type="() => EffectsFunction | undefined">
+  Creates a fresh effects function for offline rendering (WAV export). Creates new effect instances in the offline AudioContext to avoid context mismatch.
+  
+  Only includes non-bypassed effects. Returns `undefined` if no effects are active.
+</ResponseField>
+
+<ResponseField name="analyserRef" type="React.RefObject<Analyser | null>">
+  Ref to the Tone.js Analyser node for visualization (FFT, waveform, etc.).
+</ResponseField>
+
+### Example: Effect Categories
+
+Available effects are organized into categories:
+
+```typescript
+// Reverb (3 effects)
+- reverb          // Standard reverb with decay and pre-delay
+- freeverb        // Freeverb algorithm
+- jcreverb        // JCReverb algorithm
+
+// Delay (2 effects)
+- feedbackdelay   // Feedback delay with adjustable time
+- pingpongdelay   // Stereo ping-pong delay
+
+// Modulation (5 effects)
+- chorus          // Chorus effect
+- phaser          // Phaser with frequency and octaves
+- tremolo         // Amplitude modulation
+- vibrato         // Pitch modulation
+- autoPanner      // Stereo auto-panner
+
+// Filter (3 effects)
+- autoFilter      // Swept filter with LFO
+- eq3             // 3-band EQ (low, mid, high)
+- filter          // Configurable filter (lowpass, highpass, etc.)
+
+// Distortion (3 effects)
+- distortion      // Distortion with drive and wet/dry
+- chebyshev       // Chebyshev waveshaping
+- bitcrusher      // Bit depth and sample rate reduction
+
+// Dynamics (3 effects)
+- compressor      // Compressor with threshold, ratio, attack, release
+- limiter         // Limiter with threshold
+- gate            // Noise gate
+
+// Spatial (1 effect)
+- stereoPanner    // Stereo panner (-1 to 1)
+```
+
+---
+
+## useTrackDynamicEffects
+
+Manage per-track effects chains with real-time parameter updates.
+
+### Import
+
+```typescript
+import { useTrackDynamicEffects } from '@waveform-playlist/browser';
+import type { UseTrackDynamicEffectsReturn, TrackActiveEffect } from '@waveform-playlist/browser';
+```
+
+### Usage
+
+```typescript
+function TrackEffectsPanel() {
+  const {
+    trackEffectsState,
+    availableEffects,
+    addEffectToTrack,
+    removeEffectFromTrack,
+    updateTrackEffectParameter,
+    toggleBypass,
+    clearTrackEffects,
+    getTrackEffectsFunction,
+  } = useTrackDynamicEffects();
+
+  const selectedTrackId = 'track-1';
+  const trackEffects = trackEffectsState.get(selectedTrackId) || [];
+
+  return (
+    <div>
+      <h2>Track Effects</h2>
+      <select onChange={(e) => addEffectToTrack(selectedTrackId, e.target.value)}>
+        <option value="">Add Effect...</option>
+        {availableEffects.map((effect) => (
+          <option key={effect.id} value={effect.id}>
+            {effect.name}
+          </option>
+        ))}
+      </select>
+
+      {trackEffects.map((effect) => (
+        <div key={effect.instanceId}>
+          <h3>{effect.definition.name}</h3>
+          <button onClick={() => toggleBypass(selectedTrackId, effect.instanceId)}>
+            {effect.bypassed ? 'Enable' : 'Bypass'}
+          </button>
+          <button onClick={() => removeEffectFromTrack(selectedTrackId, effect.instanceId)}>
+            Remove
+          </button>
+
+          {effect.definition.parameters.map((param) => (
+            <div key={param.name}>
+              <label>{param.label}</label>
+              <input
+                type="range"
+                min={param.min}
+                max={param.max}
+                step={param.step}
+                value={effect.params[param.name] as number}
+                onChange={(e) =>
+                  updateTrackEffectParameter(
+                    selectedTrackId,
+                    effect.instanceId,
+                    param.name,
+                    parseFloat(e.target.value)
+                  )
+                }
+              />
+            </div>
+          ))}
+        </div>
+      ))}
+
+      <button onClick={() => clearTrackEffects(selectedTrackId)}>Clear All</button>
+    </div>
+  );
+}
+
+// Apply track effects to useAudioTracks
+const { getTrackEffectsFunction } = useTrackDynamicEffects();
+
+const { tracks } = useAudioTracks(
+  trackConfigs.map((config) => ({
+    ...config,
+    effects: getTrackEffectsFunction(config.id),
+  }))
+);
+```
+
+### Return Value
+
+<ResponseField name="trackEffectsState" type="Map<string, TrackActiveEffect[]>">
+  Map of track IDs to their active effects arrays.
+  
+  ```typescript
+  interface TrackActiveEffect {
+    instanceId: string;
+    effectId: string;
+    definition: EffectDefinition;
+    params: Record<string, number | string | boolean>;
+    bypassed: boolean;
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="addEffectToTrack" type="(trackId: string, effectId: string) => void">
+  Add an effect to a track's effects chain.
+</ResponseField>
+
+<ResponseField name="removeEffectFromTrack" type="(trackId: string, instanceId: string) => void">
+  Remove an effect from a track's chain.
+</ResponseField>
+
+<ResponseField name="updateTrackEffectParameter" type="(trackId: string, instanceId: string, paramName: string, value: number | string | boolean) => void">
+  Update a track effect parameter in real-time.
+</ResponseField>
+
+<ResponseField name="toggleBypass" type="(trackId: string, instanceId: string) => void">
+  Toggle bypass for a track effect.
+</ResponseField>
+
+<ResponseField name="clearTrackEffects" type="(trackId: string) => void">
+  Remove all effects from a track.
+</ResponseField>
+
+<ResponseField name="getTrackEffectsFunction" type="(trackId: string) => TrackEffectsFunction | undefined">
+  Get the effects function for a specific track. Pass this to `AudioTrackConfig.effects`.
+  
+  This is a stable function that reads from refs at call time to avoid stale closures.
+</ResponseField>
+
+<ResponseField name="createOfflineTrackEffectsFunction" type="(trackId: string) => TrackEffectsFunction | undefined">
+  Create a fresh effects function for offline rendering (WAV export). Returns `undefined` if the track has no active effects.
+</ResponseField>
+
+<ResponseField name="availableEffects" type="EffectDefinition[]">
+  Array of all available effect definitions (same as `useDynamicEffects`).
+</ResponseField>
+
+## Effect Chain Architecture
+
+### Real-Time Parameter Updates
+
+Effects support real-time parameter updates without rebuilding the audio graph:
+
+```typescript
+// Update parameter - no graph rebuild
+updateParameter(instanceId, 'decay', 3.5);
+
+// Only these operations rebuild the graph:
+// - Adding effects
+// - Removing effects  
+// - Reordering effects
+```
+
+### Bypass Pattern
+
+When bypassing an effect:
+1. Store the original `wet` value
+2. Set `wet` to 0 (fully dry signal)
+3. On un-bypass, restore the original `wet` value (not always 1)
+
+### Offline Rendering
+
+For WAV export, use the offline creator functions:
+
+```typescript
+const { createOfflineEffectsFunction } = useDynamicEffects();
+const { createOfflineTrackEffectsFunction } = useTrackDynamicEffects();
+
+const { exportWav } = useExportWav();
+
+await exportWav(tracks, trackStates, {
+  effectsFunction: createOfflineEffectsFunction(),
+  createOfflineTrackEffects: (trackId) => createOfflineTrackEffectsFunction(trackId),
+});
+```
+
+These functions create fresh effect instances in the offline AudioContext to avoid context mismatch errors.
+
+### Refs for Stable Functions
+
+Both hooks use refs to avoid stale closures:
+
+```typescript
+const activeEffectsRef = useRef(activeEffects);
+activeEffectsRef.current = activeEffects; // Update on every render
+
+const masterEffects = useCallback(
+  (masterGainNode, destination, isOffline) => {
+    const effects = activeEffectsRef.current; // Read fresh state
+    // Build audio graph...
+  },
+  [fftSize] // Only fftSize - stable function
+);
+```
+
+## Related
+
+- [Export Hook](/api/hooks/export) - Export with effects
+- [Audio Tracks Hook](/api/hooks/audio-tracks) - Add effects to tracks
+- [Effect Definitions](https://github.com/naomiaro/waveform-playlist/blob/master/packages/browser/src/effects/effectDefinitions.ts) - Full effect reference

@@ -1,0 +1,513 @@
+---
+title: Tracks & Clips
+description: Understand the clip-based multi-track editing model
+---
+
+# Tracks & Clips
+
+Waveform Playlist uses a **professional clip-based model** where each track can contain multiple audio clips positioned independently on the timeline.
+
+## Clip-Based Architecture
+
+<Tip>
+Unlike simple single-file-per-track editors, our clip model supports gaps, overlaps, trimming, and independent positioning—just like professional DAWs.
+</Tip>
+
+### Key Concepts
+
+- **Tracks** contain multiple clips
+- **Clips** can be positioned anywhere on the timeline
+- **Gaps** between clips are silent
+- **Overlaps** enable crossfades
+- **Independent trim points** for each clip
+
+## AudioClip Interface
+
+Here's the complete `AudioClip` interface from `packages/core/src/types/clip.ts`:
+
+```typescript
+interface AudioClip {
+  /** Unique identifier for this clip */
+  id: string;
+
+  /** The audio buffer containing the audio data */
+  audioBuffer?: AudioBuffer;
+
+  /** Position on timeline where this clip starts (in samples) */
+  startSample: number;
+
+  /** Duration of this clip (in samples) */
+  durationSamples: number;
+
+  /** Offset into the audio buffer where playback starts (in samples) */
+  offsetSamples: number;
+
+  /** Sample rate for this clip's audio */
+  sampleRate: number;
+
+  /** Total duration of the source audio in samples */
+  sourceDurationSamples: number;
+
+  /** Optional fade in effect */
+  fadeIn?: Fade;
+
+  /** Optional fade out effect */
+  fadeOut?: Fade;
+
+  /** Clip-specific gain/volume multiplier (0.0 to 1.0+) */
+  gain: number;
+
+  /** Optional label/name for this clip */
+  name?: string;
+
+  /** Optional color for visual distinction */
+  color?: string;
+
+  /** Pre-computed waveform data from waveform-data.js */
+  waveformData?: WaveformDataObject;
+}
+```
+
+### Sample-Based Timing
+
+All positions and durations use **integer sample counts**:
+
+<CodeGroup>
+```typescript Samples (Internal)
+const clip = createClip({
+  audioBuffer,
+  startSample: 220500,      // 5.0 seconds at 44100 Hz
+  durationSamples: 441000,  // 10.0 seconds
+  offsetSamples: 110250,    // 2.5 seconds trim
+});
+```
+
+```typescript Seconds (Convenience)
+const clip = createClipFromSeconds({
+  audioBuffer,
+  startTime: 5.0,    // Converted to 220500 samples
+  duration: 10.0,    // Converted to 441000 samples
+  offset: 2.5,       // Converted to 110250 samples
+});
+```
+</CodeGroup>
+
+<Warning>
+Internally, **all** calculations use sample counts. The `createClipFromSeconds()` helper converts to samples immediately to avoid floating-point precision errors.
+</Warning>
+
+### Understanding Clip Timing
+
+Here's how clip timing properties work together:
+
+```
+Source Audio File (10 seconds total)
+[━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━]
+    ↑                                  ↑
+    offsetSamples (2.5s)              end of clip (7.5s)
+    [━━━━━━━━━━━━━━━━━━━━━]
+         durationSamples (5s)
+
+Timeline
+[━━━━━━━━━━━━━━|━━━━━━━━━━━━━━━|━━━━━━━━━━━━━━]
+0s          startSample (5s)     clip end (10s)
+                [━━━━━━━━━━━━━━━]
+                  plays 5 seconds
+```
+
+**Properties explained:**
+
+- `startSample`: Where on the **timeline** the clip begins (5 seconds)
+- `durationSamples`: How much **audio** to play (5 seconds)
+- `offsetSamples`: Where in the **source file** to start reading (2.5 seconds)
+- `sourceDurationSamples`: Total length of the **source audio file** (10 seconds)
+
+<Check>
+**Example:** A 10-second audio file trimmed to play 5 seconds starting from 2.5s into the file, positioned at 5s on the timeline.
+</Check>
+
+## ClipTrack Interface
+
+Tracks contain clips and playback settings:
+
+```typescript
+interface ClipTrack {
+  /** Unique identifier for this track */
+  id: string;
+
+  /** Display name for this track */
+  name: string;
+
+  /** Array of audio clips on this track */
+  clips: AudioClip[];
+
+  /** Whether this track is muted */
+  muted: boolean;
+
+  /** Whether this track is soloed */
+  soloed: boolean;
+
+  /** Track volume (0.0 to 1.0+) */
+  volume: number;
+
+  /** Stereo pan (-1.0 = left, 0 = center, 1.0 = right) */
+  pan: number;
+
+  /** Optional track color for visual distinction */
+  color?: string;
+
+  /** Track height in pixels (for UI) */
+  height?: number;
+
+  /** Optional effects function for this track */
+  effects?: TrackEffectsFunction;
+
+  /** Visualization render mode (waveform or spectrogram) */
+  renderMode?: 'waveform' | 'spectrogram';
+}
+```
+
+## Creating Clips
+
+### Factory Functions
+
+Use factory functions to create clips with sensible defaults:
+
+<CodeGroup>
+```typescript Sample-Based
+import { createClip } from '@waveform-playlist/core';
+
+const clip = createClip({
+  audioBuffer,           // Required
+  startSample: 0,        // Timeline position
+  durationSamples: audioBuffer.length,  // Full duration
+  offsetSamples: 0,      // No trim
+  gain: 1.0,             // Full volume
+});
+```
+
+```typescript Time-Based
+import { createClipFromSeconds } from '@waveform-playlist/core';
+
+const clip = createClipFromSeconds({
+  audioBuffer,
+  startTime: 0,          // Timeline position in seconds
+  duration: audioBuffer.duration,
+  offset: 0,
+  gain: 1.0,
+});
+```
+</CodeGroup>
+
+### Peaks-First Rendering
+
+<Tip>
+Clips can be created with just `waveformData` (pre-computed peaks) and have `audioBuffer` added later when audio finishes loading.
+</Tip>
+
+```typescript
+import { createClipFromSeconds } from '@waveform-playlist/core';
+import { loadWaveformData } from '@waveform-playlist/browser';
+
+// Load pre-computed peaks first (instant visual)
+const waveformData = await loadWaveformData('/audio/peaks.dat');
+
+const clip = createClipFromSeconds({
+  waveformData,          // Provides sampleRate & duration
+  startTime: 0,
+  // audioBuffer added later when decode completes
+});
+
+// Later: add audio for playback
+const response = await fetch('/audio/file.mp3');
+const arrayBuffer = await response.arrayBuffer();
+const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+clip.audioBuffer = audioBuffer;  // Now playback works
+```
+
+## Creating Tracks
+
+Use `createTrack()` to build track objects:
+
+```typescript
+import { createTrack, createClipFromSeconds } from '@waveform-playlist/core';
+
+const track = createTrack({
+  name: 'Vocals',
+  clips: [
+    createClipFromSeconds({
+      audioBuffer: verse1Buffer,
+      startTime: 0,
+      duration: 8,
+    }),
+    createClipFromSeconds({
+      audioBuffer: verse2Buffer,
+      startTime: 12,  // Gap from 8s to 12s
+      duration: 8,
+    }),
+  ],
+  volume: 0.8,
+  pan: 0,
+  muted: false,
+  soloed: false,
+});
+```
+
+## Multi-Clip Patterns
+
+### File-Reference Architecture
+
+Efficiently handle multiple clips from the same audio file:
+
+```typescript
+// Load each file once
+const audioFiles = [
+  { id: 'kick', buffer: await loadAudio('/audio/kick.mp3') },
+  { id: 'snare', buffer: await loadAudio('/audio/snare.mp3') },
+];
+
+const fileBuffers = new Map(
+  audioFiles.map(f => [f.id, f.buffer])
+);
+
+// Create tracks with clips referencing buffers
+const tracks = [
+  createTrack({
+    name: 'Drums',
+    clips: [
+      // First kick hit
+      createClipFromSeconds({
+        audioBuffer: fileBuffers.get('kick'),
+        startTime: 0,
+        duration: 0.5,
+      }),
+      // Second kick hit (same file, different position)
+      createClipFromSeconds({
+        audioBuffer: fileBuffers.get('kick'),
+        startTime: 1,
+        duration: 0.5,
+      }),
+      // Snare
+      createClipFromSeconds({
+        audioBuffer: fileBuffers.get('snare'),
+        startTime: 0.5,
+        duration: 0.3,
+      }),
+    ],
+  }),
+];
+```
+
+<Check>
+**Memory Efficient:** Each audio file is loaded once, but can be used in multiple clips at different positions.
+</Check>
+
+### Finding Clips
+
+Utility functions for working with clips:
+
+```typescript
+import {
+  getClipsInRange,
+  getClipsAtSample,
+  clipsOverlap,
+  findGaps,
+} from '@waveform-playlist/core';
+
+// Get all clips between 5s and 10s
+const clips = getClipsInRange(
+  track,
+  5 * 44100,  // startSample
+  10 * 44100  // endSample
+);
+
+// Get clips at a specific time
+const clipsAtPlayhead = getClipsAtSample(track, 7.5 * 44100);
+
+// Check if two clips overlap
+const overlapping = clipsOverlap(clip1, clip2);
+
+// Find silent gaps between clips
+const gaps = findGaps(track);
+console.log(gaps);
+// [{ startSample: 352800, endSample: 529200, durationSamples: 176400 }]
+```
+
+## Clips vs Tracks
+
+### When to Use Multiple Clips
+
+✅ **Same track, different positions**  
+✅ **Gaps between audio sections**  
+✅ **Editing workflow (split, move, trim)**  
+✅ **Repeated phrases** (verse 1, verse 2)  
+
+### When to Use Multiple Tracks
+
+✅ **Different instruments** (vocals, bass, drums)  
+✅ **Independent mix controls** (mute, solo, volume, pan)  
+✅ **Vertical arrangement** (visual separation)  
+✅ **Per-track effects** (reverb on vocals only)  
+
+## Editing Operations
+
+The `PlaylistEngine` provides methods to edit clips:
+
+### Move Clip
+
+```typescript
+// Move clip 50 pixels to the right
+const deltaSamples = 50 * samplesPerPixel;
+engine.moveClip(trackId, clipId, deltaSamples);
+```
+
+<Info>
+Movement is constrained by collision detection—clips won't overlap unless intended.
+</Info>
+
+### Trim Clip
+
+```typescript
+// Trim 2 seconds from the left boundary
+const deltaSamples = -2 * sampleRate;
+engine.trimClip(trackId, clipId, 'left', deltaSamples);
+
+// Extend right boundary by 1 second
+const deltaSamples = 1 * sampleRate;
+engine.trimClip(trackId, clipId, 'right', deltaSamples);
+```
+
+### Split Clip
+
+```typescript
+// Split clip at 5 seconds into timeline
+const atSample = 5 * sampleRate;
+engine.splitClip(trackId, clipId, atSample);
+// Creates two clips: [original_start → split] and [split → original_end]
+```
+
+<Warning>
+Splitting requires a minimum clip duration (0.1 seconds by default) to prevent creating unusably short clips.
+</Warning>
+
+## Fades
+
+Clips support fade in/out effects:
+
+```typescript
+import { createClipFromSeconds } from '@waveform-playlist/core';
+
+const clip = createClipFromSeconds({
+  audioBuffer,
+  startTime: 0,
+  duration: 10,
+  fadeIn: {
+    duration: 0.5,   // 0.5 second fade in
+    type: 'linear',  // 'linear' | 'logarithmic' | 'exponential' | 'sCurve'
+  },
+  fadeOut: {
+    duration: 1.0,   // 1 second fade out
+    type: 'logarithmic',
+  },
+});
+```
+
+**Fade Types:**
+
+- `linear` - Constant slope (best for crossfades)
+- `logarithmic` - Natural volume perception
+- `exponential` - Inverse of logarithmic
+- `sCurve` - Smooth acceleration/deceleration
+
+## Timeline Interface
+
+The complete timeline structure:
+
+```typescript
+interface Timeline {
+  /** All tracks in the timeline */
+  tracks: ClipTrack[];
+
+  /** Total timeline duration in seconds */
+  duration: number;
+
+  /** Sample rate for all audio (typically 44100 or 48000) */
+  sampleRate: number;
+
+  /** Optional project name */
+  name?: string;
+
+  /** Optional tempo (BPM) for grid snapping */
+  tempo?: number;
+
+  /** Optional time signature */
+  timeSignature?: {
+    numerator: number;
+    denominator: number;
+  };
+}
+```
+
+Create a timeline with `createTimeline()`:
+
+```typescript
+import { createTimeline } from '@waveform-playlist/core';
+
+const timeline = createTimeline(
+  tracks,
+  44100,  // sampleRate
+  {
+    name: 'My Project',
+    tempo: 120,
+    timeSignature: { numerator: 4, denominator: 4 },
+  }
+);
+```
+
+## React Integration
+
+Pass tracks directly to the provider:
+
+```typescript
+import { WaveformPlaylistProvider, Waveform } from '@waveform-playlist/browser';
+
+function App() {
+  const [tracks, setTracks] = useState<ClipTrack[]>([
+    createTrack({
+      name: 'Track 1',
+      clips: [/* ... */],
+    }),
+  ]);
+
+  return (
+    <WaveformPlaylistProvider
+      tracks={tracks}
+      onTracksChange={setTracks}  // Engine operations update parent
+    >
+      <Waveform />
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+<Tip>
+The `onTracksChange` callback receives updated tracks when engine operations (move, trim, split) modify clips. Pass the received reference back as the `tracks` prop to skip unnecessary rebuilds.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Audio Engine" icon="wave-square" href="/concepts/audio-engine">
+    Learn how clips are scheduled and played
+  </Card>
+  <Card title="Editing Guide" icon="scissors" href="/guides/editing">
+    Master clip editing operations
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/types">
+    Complete type definitions
+  </Card>
+  <Card title="Multi-Clip Example" icon="layer-group" href="/examples/multi-clip">
+    See multi-clip editing in action
+  </Card>
+</CardGroup>

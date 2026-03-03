@@ -1,0 +1,407 @@
+---
+title: Recording
+description: Record audio directly into tracks using AudioWorklet-based recording
+---
+
+# Recording
+
+Waveform Playlist provides integrated multi-track recording with real-time waveform visualization and VU meters.
+
+## Quick Start
+
+```typescript
+import { useIntegratedRecording } from '@waveform-playlist/recording';
+import { WaveformPlaylistProvider } from '@waveform-playlist/browser';
+
+function RecordingPlaylist() {
+  const [tracks, setTracks] = useState<ClipTrack[]>([]);
+  const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
+
+  const {
+    isRecording,
+    isPaused,
+    duration,
+    level,
+    peakLevel,
+    hasPermission,
+    devices,
+    selectedDevice,
+    startRecording,
+    stopRecording,
+    pauseRecording,
+    resumeRecording,
+    requestMicAccess,
+    changeDevice,
+    error,
+  } = useIntegratedRecording(tracks, setTracks, selectedTrackId);
+
+  return (
+    <div>
+      {!hasPermission && (
+        <button onClick={requestMicAccess}>Enable Microphone</button>
+      )}
+
+      {hasPermission && (
+        <>
+          {/* Device selector */}
+          <select onChange={(e) => changeDevice(e.target.value)} value={selectedDevice || ''}>
+            {devices.map((device) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {device.label}
+              </option>
+            ))}
+          </select>
+
+          {/* VU Meter */}
+          <div>
+            <div style={{ width: `${level * 100}%`, height: 20, background: 'green' }} />
+            <div style={{ width: `${peakLevel * 100}%`, height: 4, background: 'red' }} />
+          </div>
+
+          {/* Recording controls */}
+          {!isRecording ? (
+            <button onClick={startRecording}>Record</button>
+          ) : (
+            <>
+              <button onClick={isPaused ? resumeRecording : pauseRecording}>
+                {isPaused ? 'Resume' : 'Pause'}
+              </button>
+              <button onClick={stopRecording}>Stop</button>
+              <div>Duration: {duration.toFixed(2)}s</div>
+            </>
+          )}
+
+          {error && <div>Error: {error.message}</div>}
+        </>
+      )}
+
+      <WaveformPlaylistProvider tracks={tracks}>
+        {/* Playlist UI */}
+      </WaveformPlaylistProvider>
+    </div>
+  );
+}
+```
+
+Location: `packages/recording/src/hooks/useIntegratedRecording.ts`
+
+## Hook Interface
+
+```typescript
+interface UseIntegratedRecordingReturn {
+  // Recording state
+  isRecording: boolean;
+  isPaused: boolean;
+  duration: number;                    // Current recording duration in seconds
+  level: number;                       // Current level (0-1)
+  peakLevel: number;                   // Peak level (0-1, decays slowly)
+  error: Error | null;
+
+  // Microphone state
+  stream: MediaStream | null;
+  devices: MicrophoneDevice[];         // Available microphones
+  hasPermission: boolean;
+  selectedDevice: string | null;       // Current device ID
+
+  // Recording controls
+  startRecording: () => void;
+  stopRecording: () => void;           // Stops and adds clip to track
+  pauseRecording: () => void;
+  resumeRecording: () => void;
+  requestMicAccess: () => Promise<void>;
+  changeDevice: (deviceId: string) => Promise<void>;
+
+  // Live waveform data
+  recordingPeaks: Int8Array | Int16Array;
+}
+```
+
+Location: `packages/recording/src/hooks/useIntegratedRecording.ts:40-65`
+
+## Options
+
+```typescript
+interface IntegratedRecordingOptions {
+  currentTime?: number;                // Recording start position (default: 0)
+  audioConstraints?: MediaTrackConstraints;  // Override defaults
+  channelCount?: number;               // 1 = mono, 2 = stereo (default: 1)
+  samplesPerPixel?: number;            // Peak generation resolution (default: 1024)
+}
+
+const recording = useIntegratedRecording(
+  tracks,
+  setTracks,
+  selectedTrackId,
+  {
+    currentTime: playbackTime,
+    channelCount: 2,  // Stereo recording
+    samplesPerPixel: 2048,
+  }
+);
+```
+
+Location: `packages/recording/src/hooks/useIntegratedRecording.ts:14-38`
+
+## Recording-Optimized Audio Constraints
+
+The hook uses optimized defaults for recording quality:
+
+```typescript
+const defaults = {
+  echoCancellation: false,   // Raw audio
+  noiseSuppression: false,   // No processing
+  autoGainControl: false,    // Manual control
+  latency: 0,                // Low latency mode
+};
+```
+
+Override with custom constraints:
+
+```typescript
+const recording = useIntegratedRecording(
+  tracks,
+  setTracks,
+  selectedTrackId,
+  {
+    audioConstraints: {
+      echoCancellation: true,  // Enable echo cancellation
+      sampleRate: 48000,       // Higher sample rate
+    },
+  }
+);
+```
+
+Location: `packages/recording/src/hooks/useMicrophoneAccess.ts:47-57`
+
+## Microphone Access
+
+The `useMicrophoneAccess` hook handles device permissions:
+
+```typescript
+import { useMicrophoneAccess } from '@waveform-playlist/recording';
+
+function MicrophoneSetup() {
+  const {
+    stream,
+    devices,
+    hasPermission,
+    isLoading,
+    requestAccess,
+    stopStream,
+    error,
+  } = useMicrophoneAccess();
+
+  return (
+    <div>
+      {!hasPermission ? (
+        <button onClick={() => requestAccess()} disabled={isLoading}>
+          {isLoading ? 'Requesting...' : 'Enable Microphone'}
+        </button>
+      ) : (
+        <>
+          <select onChange={(e) => requestAccess(e.target.value)}>
+            {devices.map((device) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {device.label}
+              </option>
+            ))}
+          </select>
+          <button onClick={stopStream}>Stop Stream</button>
+        </>
+      )}
+      {error && <div>{error.message}</div>}
+    </div>
+  );
+}
+```
+
+Location: `packages/recording/src/hooks/useMicrophoneAccess.ts`
+
+## VU Meter Levels
+
+The `useMicrophoneLevel` hook provides real-time audio levels:
+
+```typescript
+import { useMicrophoneLevel } from '@waveform-playlist/recording';
+
+function VUMeter({ stream }: { stream: MediaStream | null }) {
+  const { level, peakLevel } = useMicrophoneLevel(stream);
+
+  return (
+    <div style={{ width: 200, height: 30, background: '#333', position: 'relative' }}>
+      {/* Current level (green) */}
+      <div
+        style={{
+          position: 'absolute',
+          width: `${level * 100}%`,
+          height: '100%',
+          background: level > 0.8 ? 'red' : 'green',
+          transition: 'width 0.05s',
+        }}
+      />
+      {/* Peak indicator (red line) */}
+      <div
+        style={{
+          position: 'absolute',
+          left: `${peakLevel * 100}%`,
+          width: 2,
+          height: '100%',
+          background: 'red',
+        }}
+      />
+    </div>
+  );
+}
+```
+
+Levels are normalized from dB to 0-1 range:
+```typescript
+// Meter returns -Infinity to 0 dB
+// Map -100dB..0dB to 0..1 (using -100dB floor for Firefox compatibility)
+const normalized = Math.max(0, Math.min(1, (dbValue + 100) / 100));
+```
+
+Location: `packages/recording/CLAUDE.md`
+
+## Recording Flow
+
+<Steps>
+
+### Request microphone access
+
+```typescript
+await requestMicAccess();
+```
+
+This prompts the browser for microphone permission and enumerates devices.
+
+### Select a track
+
+```typescript
+setSelectedTrackId('track-id');
+```
+
+Recording adds clips to the selected track. Create a track if needed:
+
+```typescript
+const newTrack = createTrack({ name: 'Recording', clips: [] });
+setTracks([...tracks, newTrack]);
+setSelectedTrackId(newTrack.id);
+```
+
+### Start recording
+
+```typescript
+startRecording();
+```
+
+Recording begins at `max(currentTime, lastClipEndTime)` to prevent overlaps.
+
+### Monitor levels
+
+```typescript
+<div style={{ width: `${level * 100}%` }} />
+```
+
+The `level` and `peakLevel` values update in real-time.
+
+### Stop recording
+
+```typescript
+stopRecording();
+```
+
+This creates a new clip with the recorded audio and adds it to the selected track.
+
+</Steps>
+
+## Clip Positioning
+
+Recorded clips are positioned at the greater of:
+1. Current playback time
+2. End of the last clip in the track
+
+```typescript
+const startSample = Math.max(
+  currentTimeSamples,
+  lastClipEndSample
+);
+```
+
+This prevents overlapping clips.
+
+Location: `packages/recording/src/hooks/useIntegratedRecording.ts:147-160`
+
+## Pause and Resume
+
+```typescript
+// Pause recording (keeps clip)
+pauseRecording();
+
+// Resume from current position
+resumeRecording();
+
+// Check state
+if (isPaused) {
+  resumeRecording();
+}
+```
+
+Pausing stops audio capture but keeps the recording session active.
+
+## Error Handling
+
+```typescript
+const { error, startRecording } = useIntegratedRecording(
+  tracks,
+  setTracks,
+  selectedTrackId
+);
+
+if (error) {
+  if (error.message.includes('no track selected')) {
+    // User needs to select or create a track
+  }
+  if (error.message.includes('no longer exists')) {
+    // Track was deleted during recording
+  }
+}
+```
+
+Common errors:
+- `"Cannot start recording: no track selected"` - Call `setSelectedTrackId` first
+- `"Recording completed but track no longer exists"` - Track deleted during recording
+- Browser permission denied
+- Microphone in use by another app
+
+Location: `packages/recording/src/hooks/useIntegratedRecording.ts:101-145`
+
+## AudioWorklet Architecture
+
+Recording uses AudioWorklet for low-latency capture:
+
+```typescript
+// Each hook creates its own MediaStreamSource from Tone's shared context
+const context = getContext();  // Tone.js shared context
+const source = context.createMediaStreamSource(stream);
+const meter = new Meter({ smoothing, context });
+connect(source, meter);
+```
+
+This ensures Firefox compatibility by avoiding AudioContext mismatch errors.
+
+Location: `packages/recording/CLAUDE.md`
+
+## Important Notes
+
+- Recording requires a selected track - call `setSelectedTrackId` before `startRecording`
+- The hook resumes the global AudioContext on user interaction
+- Peak generation happens in real-time for live waveform visualization
+- `console.log()` in AudioWorklet does NOT appear in browser console
+- Use `postMessage()` or state updates for debugging worklets
+
+## Next Steps
+
+- [Multi-Track Editing](/guides/multi-track-editing) - Manage recorded clips
+- [Audio Effects](/guides/audio-effects) - Apply effects to recordings
+- [Export WAV](/guides/export-wav) - Export recordings

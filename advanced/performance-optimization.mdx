@@ -1,0 +1,463 @@
+---
+title: Performance Optimization
+description: Techniques for handling large audio files and long playlists with virtual scrolling and web workers
+---
+
+# Performance Optimization
+
+Waveform Playlist includes several performance optimizations for handling large audio files and long playlists. Understanding these techniques helps you build responsive audio applications.
+
+## Virtual Scrolling
+
+The library uses horizontal virtual scrolling to render only visible canvas chunks, dramatically reducing memory usage and improving performance for long audio files.
+
+### How Virtual Scrolling Works
+
+1. **Viewport detection**: `ScrollViewportProvider` observes the scroll container and calculates visible bounds
+2. **Chunk calculation**: Content is divided into 1000px canvas chunks
+3. **Selective rendering**: Only chunks in the viewport + 1.5x overscan buffer are mounted
+4. **Absolute positioning**: Chunks use `left: chunkIndex * 1000px` for correct positioning
+
+### ScrollViewport Context
+
+```typescript
+interface ScrollViewport {
+  scrollLeft: number;
+  containerWidth: number;
+  visibleStart: number;  // Left edge with 1.5x buffer
+  visibleEnd: number;    // Right edge with 1.5x buffer
+}
+```
+
+The viewport is updated on scroll events (throttled with `requestAnimationFrame`) and container resize:
+
+```tsx
+// Internal implementation pattern
+const ViewportStore = {
+  update(scrollLeft: number, containerWidth: number) {
+    const buffer = containerWidth * 1.5;
+    const visibleStart = Math.max(0, scrollLeft - buffer);
+    const visibleEnd = scrollLeft + containerWidth + buffer;
+    
+    // Skip updates that don't affect chunk visibility (100px threshold)
+    if (Math.abs(prevScrollLeft - scrollLeft) < 100) return;
+    
+    this._state = { scrollLeft, containerWidth, visibleStart, visibleEnd };
+    this._notifyListeners();
+  }
+};
+```
+
+### Using useVisibleChunkIndices
+
+Components use `useVisibleChunkIndices` to determine which chunks to render:
+
+```tsx
+import { useVisibleChunkIndices } from '@waveform-playlist/ui-components';
+
+function Channel({ totalWidth }: { totalWidth: number }) {
+  const CHUNK_WIDTH = 1000;
+  const visibleChunks = useVisibleChunkIndices(totalWidth, CHUNK_WIDTH);
+  
+  return (
+    <>
+      {visibleChunks.map((chunkIndex) => (
+        <Canvas
+          key={chunkIndex}
+          style={{ left: `${chunkIndex * CHUNK_WIDTH}px` }}
+          width={CHUNK_WIDTH}
+        />
+      ))}
+    </>
+  );
+}
+```
+
+<Note>
+  `useVisibleChunkIndices` returns a memoized array that only changes when the set of visible chunks changes, not on every scroll pixel. This prevents unnecessary re-renders.
+</Note>
+
+### Clip Coordinate Space
+
+Clips not starting at position 0 need to convert their local chunk coordinates to global viewport space:
+
+```tsx
+function ClipChannel({ clipLeft, clipWidth }: Props) {
+  // originX converts local chunk coords to global viewport space
+  const visibleChunks = useVisibleChunkIndices(
+    clipWidth,
+    1000,
+    clipLeft  // originX parameter
+  );
+  
+  // Chunks are positioned relative to clip's left offset
+  return (
+    <div style={{ left: `${clipLeft}px` }}>
+      {visibleChunks.map((chunkIndex) => (
+        <Canvas style={{ left: `${chunkIndex * 1000}px` }} />
+      ))}
+    </div>
+  );
+}
+```
+
+The `ClipViewportOriginProvider` supplies the clip's pixel offset to descendant components.
+
+### Benefits of Virtual Scrolling
+
+- **Memory reduction**: 10-hour file at 100 samples/px = ~3.6M pixels. Virtual scrolling renders only ~3000px at a time
+- **Faster initial render**: Mounting 3 canvases instead of 3600
+- **Smooth scrolling**: Chunks mount/unmount off-screen without janky frame drops
+- **Spectrogram support**: Spectrograms are memory-intensive - virtual scrolling makes them practical
+
+## Web Workers for Peak Generation
+
+Waveform data is generated in a web worker to avoid blocking the main thread:
+
+```typescript
+// useWaveformDataCache hook pattern
+const worker = createPeaksWorker();
+
+for (const clip of clipsWithAudioBuffer) {
+  const channels = [];
+  for (let c = 0; c < audioBuffer.numberOfChannels; c++) {
+    channels.push(audioBuffer.getChannelData(c).slice().buffer);
+  }
+  
+  worker.generate({
+    id: clip.id,
+    channels,
+    length: audioBuffer.length,
+    sampleRate: audioBuffer.sampleRate,
+    scale: 512,  // Base scale for highest resolution
+    bits: 16,
+    splitChannels: true,
+  }).then((waveformData) => {
+    cache.set(clip.id, waveformData);
+  });
+}
+```
+
+### Peak Resolution Strategy
+
+1. **Initial load**: Worker generates `WaveformData` at base scale (512 samples/px)
+2. **Zoom changes**: Use `waveformData.resample(newScale)` - near-instant, no worker needed
+3. **Cache**: Store `Map<clipId, WaveformData>` to avoid regenerating on re-renders
+
+```tsx
+// Zoom is instant after initial generation
+const resampledPeaks = waveformData.resample({
+  scale: 2048  // 4x zoom out from base 512
+});
+```
+
+<Accordion title="Why base scale 512 instead of exact samplesPerPixel?">
+  Generating at a low base scale (high resolution) creates a "master" WaveformData that can be resampled to any higher scale instantly. 
+  
+  If you generate at the exact current zoom (e.g., 1024), zooming in to 512 would require regenerating from the AudioBuffer (slow). With a 512 base, zoom in/out is always instant via `resample()`.
+  
+  Tradeoff: Initial generation takes ~20% longer, but subsequent zooms are 50-100x faster.
+</Accordion>
+
+### Worker Implementation Pattern
+
+The worker is created as an inline Blob for bundler portability:
+
+```typescript
+export function createPeaksWorker(): PeaksWorkerApi {
+  // Worker code as string
+  const workerCode = `
+    importScripts('https://unpkg.com/waveform-data@4.5.0/dist/waveform-data.min.js');
+    
+    self.addEventListener('message', (e) => {
+      const { id, channels, length, sampleRate, scale, bits } = e.data;
+      
+      // Generate peaks
+      const waveformData = WaveformData.create({
+        // ...
+      });
+      
+      self.postMessage({ id, waveformData: waveformData.toJSON() });
+    });
+  `;
+  
+  const blob = new Blob([workerCode], { type: 'application/javascript' });
+  const worker = new Worker(URL.createObjectURL(blob));
+  
+  return {
+    generate(opts) {
+      return new Promise((resolve) => {
+        worker.postMessage(opts);
+        worker.addEventListener('message', (e) => {
+          if (e.data.id === opts.id) {
+            resolve(WaveformData.create(e.data.waveformData));
+          }
+        });
+      });
+    },
+    terminate() {
+      worker.terminate();
+    },
+  };
+}
+```
+
+## Canvas Chunking
+
+### Why 1000px Chunks?
+
+Browsers have maximum canvas size limits:
+
+- Chrome: 32,767px (width or height)
+- Firefox: 32,767px
+- Safari: 4,194,303px (total pixels)
+
+A 10-hour file at 100 samples/px = 3.6M pixels wide. Single canvas would:
+- Exceed Safari's total pixel limit
+- Cause memory allocation failures
+- Block the main thread during draw operations
+
+Chunking into 1000px canvases:
+- Stays well under limits
+- Allows incremental rendering
+- Enables virtual scrolling (only render visible chunks)
+- Improves perceived performance (first chunk renders immediately)
+
+### Chunk Registration Pattern
+
+Components track canvas refs per chunk:
+
+```tsx
+function useChunkedCanvasRefs() {
+  const canvasMapRef = useRef<Map<number, HTMLCanvasElement>>(new Map());
+  
+  const registerCanvas = useCallback((chunkIndex: number) => {
+    return (canvas: HTMLCanvasElement | null) => {
+      if (canvas) {
+        canvasMapRef.current.set(chunkIndex, canvas);
+      } else {
+        canvasMapRef.current.delete(chunkIndex);
+      }
+    };
+  }, []);
+  
+  return { canvasMap: canvasMapRef.current, registerCanvas };
+}
+```
+
+Usage:
+
+```tsx
+const { canvasMap, registerCanvas } = useChunkedCanvasRefs();
+
+return (
+  <>
+    {visibleChunks.map((chunkIndex) => (
+      <canvas
+        key={chunkIndex}
+        ref={registerCanvas(chunkIndex)}
+        width={1000}
+      />
+    ))}
+  </>
+);
+```
+
+## Spectrogram Optimization
+
+Spectrograms are the most memory-intensive visualization. Virtual scrolling is critical:
+
+```tsx
+// Without virtual scrolling: 3600 OffscreenCanvas + WebGL contexts
+// With virtual scrolling: 3 OffscreenCanvas + WebGL contexts
+
+function SpectrogramChannel({ totalWidth }: Props) {
+  const visibleChunks = useVisibleChunkIndices(totalWidth, 1000);
+  
+  // Only mount canvases for visible chunks
+  return (
+    <>
+      {visibleChunks.map((chunkIndex) => (
+        <Canvas
+          key={chunkIndex}
+          ref={(canvas) => {
+            if (canvas) {
+              canvas.transferControlToOffscreen(); // Web worker rendering
+            }
+          }}
+        />
+      ))}
+    </>
+  );
+}
+```
+
+<Warning>
+  `transferControlToOffscreen()` can only be called once per canvas. Always use stable React keys (`chunkIndex`) instead of array indices to avoid DOM reuse.
+</Warning>
+
+## Memory Management
+
+### AudioBuffer Disposal
+
+AudioBuffers are large (44.1kHz stereo, 1 minute = ~10MB). Dispose when no longer needed:
+
+```tsx
+function useAudioTracks(configs: AudioTrackConfig[]) {
+  useEffect(() => {
+    // Load audio buffers
+    const buffers = await loadAudioBuffers(configs);
+    
+    return () => {
+      // Dispose on unmount or config change
+      buffers.forEach((buffer) => {
+        // Note: AudioBuffer has no dispose() method - just null the reference
+        // Garbage collector will reclaim memory
+      });
+    };
+  }, [configs]);
+}
+```
+
+### Tone.js Node Cleanup
+
+Always dispose Tone.js nodes to prevent memory leaks:
+
+```tsx
+const reverb = new Reverb({ decay: 3 });
+
+// Later:
+reverb.disconnect();
+reverb.dispose();  // Critical - releases internal buffers
+```
+
+Effects hooks handle this automatically:
+
+```tsx
+useEffect(() => {
+  const instances = effectInstancesRef.current;
+  return () => {
+    instances.forEach((inst) => inst.dispose());
+    instances.clear();
+  };
+}, []);
+```
+
+### Waveform Data Cache Management
+
+The `useWaveformDataCache` hook avoids duplicate work:
+
+```tsx
+const cache = useRef<Map<string, WaveformData>>(new Map());
+const submitted = useRef<Set<string>>(new Set());
+
+for (const clip of clips) {
+  if (clip.audioBuffer && !clip.waveformData && !submitted.has(clip.id)) {
+    submitted.add(clip.id);
+    worker.generate(clip).then((waveformData) => {
+      cache.current.set(clip.id, waveformData);
+    });
+  }
+}
+```
+
+Prevents regenerating peaks when:
+- Clip order changes
+- Clips are trimmed/split (ID stays the same)
+- Provider re-renders
+
+## Multi-Channel Rendering Fairness
+
+Render visible chunks for ALL channels before background batches:
+
+```tsx
+// ❌ BAD: Renders all chunks for channel 0, then channel 1
+for (const channel of channels) {
+  for (const chunk of visibleChunks) {
+    renderChunk(channel, chunk);
+  }
+  for (const chunk of backgroundChunks) {
+    renderChunk(channel, chunk);
+  }
+}
+
+// ✅ GOOD: Renders visible chunks for all channels first
+for (const chunk of visibleChunks) {
+  for (const channel of channels) {
+    renderChunk(channel, chunk);
+  }
+}
+for (const chunk of backgroundChunks) {
+  for (const channel of channels) {
+    renderChunk(channel, chunk);
+  }
+}
+```
+
+This prevents "channel starvation" where interruptions abort background work on later channels.
+
+## Scroll Threshold
+
+The viewport store uses a 100px threshold to skip updates that don't affect chunk visibility:
+
+```typescript
+if (
+  prevState &&
+  prevState.containerWidth === containerWidth &&
+  Math.abs(prevState.scrollLeft - scrollLeft) < 100
+) {
+  return; // Skip update - no chunks changed
+}
+```
+
+With 1000px chunks and 1.5x overscan:
+- Viewport width: 1200px
+- Overscan buffer: 1800px (1.5x)
+- Total render window: 1200 + 3600 = 4800px
+- Chunks change every: ~1000px of scrolling
+
+The 100px threshold reduces React updates by ~10x while ensuring chunks mount before entering the viewport.
+
+## RequestAnimationFrame Throttling
+
+Scroll events are throttled using `requestAnimationFrame`:
+
+```tsx
+const rafIdRef = useRef<number | null>(null);
+
+const scheduleUpdate = useCallback(() => {
+  if (rafIdRef.current !== null) return; // Already scheduled
+  
+  rafIdRef.current = requestAnimationFrame(() => {
+    rafIdRef.current = null;
+    measure(); // Update viewport state
+  });
+}, [measure]);
+
+element.addEventListener('scroll', scheduleUpdate, { passive: true });
+```
+
+This ensures updates happen at most once per frame (~16ms), even if scroll events fire more frequently.
+
+## Best Practices
+
+1. **Use virtual scrolling** - Don't disable it unless you have a specific reason (e.g., short files < 5 minutes)
+2. **Pre-compute peaks server-side** - Use [audiowaveform](https://github.com/bbc/audiowaveform) to generate peaks before upload
+3. **Lazy load audio** - Fetch AudioBuffers only when needed, not all at page load
+4. **Dispose resources** - Clean up Tone.js nodes, workers, and event listeners in useEffect cleanup
+5. **Use OffscreenCanvas** - For spectrograms and heavy canvas work, transfer to web worker
+6. **Monitor memory** - Use Chrome DevTools Memory profiler to catch leaks
+7. **Test on low-end devices** - Mobile Safari with 2GB RAM is a good benchmark
+
+## Performance Metrics
+
+Typical performance with virtual scrolling enabled:
+
+- **10-hour file**: Renders first viewport in &lt;100ms, full background render in ~2s
+- **Memory usage**: ~50MB for waveform + peaks (vs ~500MB without virtual scrolling)
+- **Scroll FPS**: 60fps on desktop, 30-60fps on mobile
+- **Spectrogram**: ~150MB for 10 hours (vs ~1.5GB without virtual scrolling)
+
+<Note>
+  Actual performance depends on device hardware, samples per pixel, and number of channels/tracks.
+</Note>

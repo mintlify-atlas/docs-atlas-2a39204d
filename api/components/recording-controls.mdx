@@ -1,0 +1,330 @@
+---
+title: Recording Controls
+description: UI components for audio recording functionality including microphone selection and level monitoring
+---
+
+## RecordButton
+
+Control button for starting and stopping audio recording.
+
+**Package:** `@waveform-playlist/recording`
+
+### Props
+
+<ParamField path="isRecording" type="boolean" required>
+  Whether recording is currently active.
+</ParamField>
+
+<ParamField path="onClick" type="() => void" required>
+  Callback function when the button is clicked.
+</ParamField>
+
+<ParamField path="disabled" type="boolean" default="false">
+  Whether the button is disabled.
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+### Behavior
+
+- Shows "Record" text when not recording
+- Shows "Stop Recording" with pulsing indicator when recording
+- Button color changes based on recording state
+- Includes focus and hover states
+
+### Usage
+
+```tsx
+import { useRecording, RecordButton } from '@waveform-playlist/recording';
+
+function RecordingControls() {
+  const { isRecording, startRecording, stopRecording } = useRecording();
+  
+  const handleClick = async () => {
+    if (isRecording) {
+      await stopRecording();
+    } else {
+      await startRecording();
+    }
+  };
+  
+  return <RecordButton isRecording={isRecording} onClick={handleClick} />;
+}
+```
+
+---
+
+## MicrophoneSelector
+
+Dropdown component for selecting microphone input device.
+
+**Package:** `@waveform-playlist/recording`
+
+### Props
+
+<ParamField path="devices" type="MicrophoneDevice[]" required>
+  Array of available microphone devices.
+  
+  <Expandable title="MicrophoneDevice Type">
+    ```typescript
+    interface MicrophoneDevice {
+      deviceId: string;
+      label: string;
+      groupId: string;
+    }
+    ```
+  </Expandable>
+</ParamField>
+
+<ParamField path="selectedDeviceId" type="string">
+  Currently selected device ID. If not provided, uses the first device.
+</ParamField>
+
+<ParamField path="onDeviceChange" type="(deviceId: string) => void" required>
+  Callback when a different device is selected.
+</ParamField>
+
+<ParamField path="disabled" type="boolean" default="false">
+  Whether the selector is disabled.
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+### Usage
+
+```tsx
+import { useMicrophoneAccess, MicrophoneSelector } from '@waveform-playlist/recording';
+import { useState } from 'react';
+
+function MicrophoneSettings() {
+  const { devices } = useMicrophoneAccess();
+  const [selectedDevice, setSelectedDevice] = useState<string>();
+  
+  return (
+    <MicrophoneSelector 
+      devices={devices}
+      selectedDeviceId={selectedDevice}
+      onDeviceChange={setSelectedDevice}
+    />
+  );
+}
+```
+
+---
+
+## RecordingIndicator
+
+Displays recording status, duration, and visual indicator.
+
+**Package:** `@waveform-playlist/recording`
+
+### Props
+
+<ParamField path="isRecording" type="boolean" required>
+  Whether recording is currently active.
+</ParamField>
+
+<ParamField path="isPaused" type="boolean" default="false">
+  Whether recording is paused.
+</ParamField>
+
+<ParamField path="duration" type="number" required>
+  Recording duration in seconds.
+</ParamField>
+
+<ParamField path="formatTime" type="(seconds: number) => string">
+  Custom time formatting function. Default formats as MM:SS.
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+### Behavior
+
+- Shows blinking red dot when recording
+- Shows yellow dot when paused
+- Displays duration in MM:SS format (customizable)
+- Shows "Recording" or "Paused" status text
+- Background highlights when recording is active
+
+### Usage
+
+```tsx
+import { useRecording, RecordingIndicator } from '@waveform-playlist/recording';
+
+function RecordingStatus() {
+  const { isRecording, isPaused, duration } = useRecording();
+  
+  return (
+    <RecordingIndicator 
+      isRecording={isRecording}
+      isPaused={isPaused}
+      duration={duration}
+    />
+  );
+}
+```
+
+### Custom Time Format
+
+```tsx
+function formatTimeWithMillis(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  const millis = Math.floor((seconds % 1) * 1000);
+  return `${mins}:${secs.toString().padStart(2, '0')}.${millis.toString().padStart(3, '0')}`;
+}
+
+<RecordingIndicator 
+  isRecording={isRecording}
+  duration={duration}
+  formatTime={formatTimeWithMillis}
+/>
+```
+
+---
+
+## VUMeter
+
+Displays real-time audio input levels with color-coded zones and peak indicator.
+
+**Package:** `@waveform-playlist/recording`
+
+### Props
+
+<ParamField path="level" type="number" required>
+  Current audio level (0-1 range). Values are automatically clamped.
+</ParamField>
+
+<ParamField path="peakLevel" type="number">
+  Peak level (0-1 range). When provided, shows a white indicator line at the peak position.
+</ParamField>
+
+<ParamField path="width" type="number" default="200">
+  Width of the meter in pixels.
+</ParamField>
+
+<ParamField path="height" type="number" default="20">
+  Height of the meter in pixels.
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+### Color Zones
+
+- **Green (0-60%):** Safe operating level
+- **Yellow (60-85%):** Approaching maximum
+- **Red (85-100%):** Clipping/distortion risk
+
+### Usage
+
+```tsx
+import { useMicrophoneLevel, VUMeter } from '@waveform-playlist/recording';
+
+function AudioLevelMeter({ stream }: { stream: MediaStream }) {
+  const { level, peakLevel } = useMicrophoneLevel(stream);
+  
+  return (
+    <VUMeter 
+      level={level} 
+      peakLevel={peakLevel}
+      width={300}
+      height={24}
+    />
+  );
+}
+```
+
+---
+
+## Complete Recording UI Example
+
+```tsx
+import { 
+  useRecording,
+  useMicrophoneAccess,
+  useMicrophoneLevel,
+  RecordButton,
+  MicrophoneSelector,
+  RecordingIndicator,
+  VUMeter
+} from '@waveform-playlist/recording';
+import { useState } from 'react';
+
+function RecordingInterface() {
+  const [selectedDevice, setSelectedDevice] = useState<string>();
+  
+  const { 
+    stream, 
+    devices, 
+    requestAccess 
+  } = useMicrophoneAccess();
+  
+  const { 
+    isRecording, 
+    isPaused,
+    duration,
+    startRecording, 
+    stopRecording,
+    pauseRecording,
+    resumeRecording
+  } = useRecording({
+    deviceId: selectedDevice
+  });
+  
+  const { level, peakLevel } = useMicrophoneLevel(stream);
+  
+  const handleRecord = async () => {
+    if (isRecording) {
+      await stopRecording();
+    } else {
+      if (!stream) {
+        await requestAccess(selectedDevice);
+      }
+      await startRecording();
+    }
+  };
+  
+  return (
+    <div className="recording-ui">
+      <MicrophoneSelector 
+        devices={devices}
+        selectedDeviceId={selectedDevice}
+        onDeviceChange={setSelectedDevice}
+      />
+      
+      <VUMeter 
+        level={level} 
+        peakLevel={peakLevel}
+        width={300}
+      />
+      
+      <RecordingIndicator 
+        isRecording={isRecording}
+        isPaused={isPaused}
+        duration={duration}
+      />
+      
+      <div className="controls">
+        <RecordButton 
+          isRecording={isRecording} 
+          onClick={handleRecord}
+        />
+        
+        {isRecording && (
+          <button onClick={isPaused ? resumeRecording : pauseRecording}>
+            {isPaused ? 'Resume' : 'Pause'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+```

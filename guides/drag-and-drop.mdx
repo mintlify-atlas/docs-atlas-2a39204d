@@ -1,0 +1,308 @@
+---
+title: Drag and Drop
+description: Implement clip movement and boundary trimming with @dnd-kit integration
+---
+
+# Drag and Drop
+
+Waveform Playlist uses [@dnd-kit](https://dndkit.com/) for drag-and-drop clip manipulation. The `useClipDragHandlers` hook provides collision detection and boundary constraints.
+
+## Basic Setup
+
+```typescript
+import { DndContext, DragOverlay } from '@dnd-kit/core';
+import { restrictToHorizontalAxis } from '@dnd-kit/modifiers';
+import { useClipDragHandlers } from '@waveform-playlist/browser';
+import { usePlaylistData } from '@waveform-playlist/browser';
+
+function DraggablePlaylist() {
+  const { tracks, samplesPerPixel, sampleRate, playoutRef, isDraggingRef } = usePlaylistData();
+  const [localTracks, setLocalTracks] = useState(tracks);
+
+  const {
+    onDragStart,
+    onDragMove,
+    onDragEnd,
+    onDragCancel,
+    collisionModifier,
+  } = useClipDragHandlers({
+    tracks: localTracks,
+    onTracksChange: setLocalTracks,
+    samplesPerPixel,
+    sampleRate,
+    engineRef: playoutRef,
+    isDraggingRef,
+  });
+
+  return (
+    <DndContext
+      onDragStart={onDragStart}
+      onDragMove={onDragMove}
+      onDragEnd={onDragEnd}
+      onDragCancel={onDragCancel}
+      modifiers={[restrictToHorizontalAxis, collisionModifier]}
+    >
+      <Waveform showClipHeaders={true} />
+    </DndContext>
+  );
+}
+```
+
+Location: `packages/browser/src/hooks/useClipDragHandlers.ts:39-61`
+
+## Hook Interface
+
+```typescript
+interface UseClipDragHandlersOptions {
+  tracks: ClipTrack[];
+  onTracksChange: (tracks: ClipTrack[]) => void;
+  samplesPerPixel: number;
+  sampleRate: number;
+  engineRef: RefObject<PlaylistEngine | null>;
+  isDraggingRef: MutableRefObject<boolean>;  // From usePlaylistData()
+}
+```
+
+Location: `packages/browser/src/hooks/useClipDragHandlers.ts:14-24`
+
+## Drag Handlers
+
+### onDragStart
+
+Called when drag begins. Stores original clip state for boundary trimming:
+
+```typescript
+const onDragStart = (event: DragStartEvent) => {
+  const { active } = event;
+  const { boundary } = active.data.current as { boundary?: 'left' | 'right' };
+
+  // Only store state for boundary trimming operations
+  if (boundary) {
+    // Store original clip dimensions
+    // Set isDraggingRef to prevent engine rebuild
+    isDraggingRef.current = true;
+  }
+};
+```
+
+Location: `packages/browser/src/hooks/useClipDragHandlers.ts:123-156`
+
+### onDragMove
+
+Called during drag. Updates React state for smooth visual feedback (boundary trimming only):
+
+```typescript
+const onDragMove = (event: DragMoveEvent) => {
+  const { active, delta } = event;
+  const { boundary } = active.data.current;
+  
+  if (!boundary) return; // Only for boundary trimming
+
+  // Apply cumulative delta from original clip state
+  // Use constrainBoundaryTrim from engine for collision detection
+  onTracksChange(newTracks);
+};
+```
+
+Location: `packages/browser/src/hooks/useClipDragHandlers.ts:158-250`
+
+### onDragEnd
+
+Called when drag completes. Commits changes to the engine:
+
+```typescript
+const onDragEnd = (event: DragEndEvent) => {
+  const { active, delta } = event;
+  const { trackIndex, clipId, boundary } = active.data.current;
+  
+  const sampleDelta = delta.x * samplesPerPixel;
+  const trackId = tracks[trackIndex]?.id;
+
+  if (boundary) {
+    // Boundary trim: commit final delta to engine
+    isDraggingRef.current = false;
+    engineRef.current?.trimClip(trackId, clipId, boundary, Math.floor(sampleDelta));
+  } else {
+    // Clip move: delegate to engine in one shot
+    engineRef.current?.moveClip(trackId, clipId, Math.floor(sampleDelta));
+  }
+};
+```
+
+Location: `packages/browser/src/hooks/useClipDragHandlers.ts:252-299`
+
+### onDragCancel
+
+Reset state when drag is cancelled (Escape key, focus loss):
+
+```typescript
+const onDragCancel = (_event: DragCancelEvent) => {
+  isDraggingRef.current = false;
+  originalClipStateRef.current = null;
+};
+```
+
+Location: `packages/browser/src/hooks/useClipDragHandlers.ts:303-308`
+
+## Collision Detection
+
+The `collisionModifier` prevents clips from overlapping during movement:
+
+```typescript
+const collisionModifier = (args: Parameters<Modifier>[0]) => {
+  const { transform, active } = args;
+  const { trackIndex, clipIndex } = active.data.current;
+  
+  const track = tracks[trackIndex];
+  const clip = track.clips[clipIndex];
+  
+  // Convert pixel delta to samples
+  const deltaSamples = transform.x * samplesPerPixel;
+  
+  // Use engine's constrainClipDrag for collision math
+  const sortedClips = sortClipsByTime(track.clips);
+  const sortedIndex = sortedClips.findIndex((c) => c.id === clip.id);
+  const constrainedDelta = constrainClipDrag(clip, deltaSamples, sortedClips, sortedIndex);
+  
+  // Convert constrained sample delta back to pixels
+  const constrainedX = constrainedDelta / samplesPerPixel;
+  
+  return {
+    ...transform,
+    x: constrainedX,
+  };
+};
+```
+
+Location: `packages/browser/src/hooks/useClipDragHandlers.ts:80-121`
+
+## Move vs. Trim Asymmetry
+
+**Move:**
+- `collisionModifier` constrains visual position per-frame
+- `onDragEnd` delegates to `engine.moveClip()` in one shot
+
+**Trim:**
+- `onDragMove` updates React state per-frame for smooth visuals
+- `isDraggingRef` prevents engine rebuild during drag
+- `onDragEnd` commits final delta via `engine.trimClip()`
+
+Location: `packages/browser/src/hooks/useClipDragHandlers.ts:32-38`
+
+## Boundary Trimming
+
+Trim clip edges by dragging boundaries:
+
+```typescript
+// Clip data must include boundary information:
+const clipData = {
+  clipId: 'clip-1',
+  trackIndex: 0,
+  clipIndex: 0,
+  boundary: 'left' | 'right',  // Which edge to trim
+};
+```
+
+Boundary trimming:
+- Adjusts `offsetSamples` and `durationSamples` (left boundary)
+- Adjusts `durationSamples` only (right boundary)
+- Prevents clips from shrinking below 0.1 seconds
+- Uses `constrainBoundaryTrim` from engine for collision detection
+
+Location: `packages/browser/src/hooks/useClipDragHandlers.ts:193-241`
+
+## isDraggingRef Lifecycle
+
+The `isDraggingRef` prevents engine rebuilds during boundary trim:
+
+```typescript
+// In onDragStart (boundary trim only):
+isDraggingRef.current = true;
+
+// In onDragEnd (before engine update):
+isDraggingRef.current = false;
+engineRef.current?.trimClip(trackId, clipId, boundary, sampleDelta);
+
+// In onDragCancel (safety reset):
+isDraggingRef.current = false;
+```
+
+Without this, `loadAudio` would rebuild the engine on every `onDragMove`, breaking the visual feedback.
+
+Location: `packages/browser/src/hooks/useClipDragHandlers.ts:20-23`
+
+## Example: Full Implementation
+
+```typescript
+import { DndContext, DragOverlay, useDraggable } from '@dnd-kit/core';
+import { restrictToHorizontalAxis } from '@dnd-kit/modifiers';
+import { useClipDragHandlers } from '@waveform-playlist/browser';
+
+function DraggableClip({ clip, trackIndex, clipIndex }) {
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({
+    id: clip.id,
+    data: {
+      clipId: clip.id,
+      trackIndex,
+      clipIndex,
+    },
+  });
+
+  const style = transform ? {
+    transform: `translateX(${transform.x}px)`,
+  } : undefined;
+
+  return (
+    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+      {/* Clip visualization */}
+    </div>
+  );
+}
+
+function PlaylistWithDragDrop() {
+  const { tracks, samplesPerPixel, sampleRate, playoutRef, isDraggingRef } = usePlaylistData();
+  const [localTracks, setLocalTracks] = useState(tracks);
+
+  const dragHandlers = useClipDragHandlers({
+    tracks: localTracks,
+    onTracksChange: setLocalTracks,
+    samplesPerPixel,
+    sampleRate,
+    engineRef: playoutRef,
+    isDraggingRef,
+  });
+
+  return (
+    <DndContext
+      {...dragHandlers}
+      modifiers={[restrictToHorizontalAxis, dragHandlers.collisionModifier]}
+    >
+      {localTracks.map((track, trackIndex) => (
+        <div key={track.id}>
+          {track.clips.map((clip, clipIndex) => (
+            <DraggableClip 
+              key={clip.id} 
+              clip={clip} 
+              trackIndex={trackIndex} 
+              clipIndex={clipIndex}
+            />
+          ))}
+        </div>
+      ))}
+    </DndContext>
+  );
+}
+```
+
+## Important Notes
+
+- Always use `restrictToHorizontalAxis` modifier to prevent vertical dragging
+- `collisionModifier` must come after `restrictToHorizontalAxis`
+- `isDraggingRef` is essential for smooth boundary trimming
+- `onDragCancel` prevents stuck state when drag is interrupted
+
+## Next Steps
+
+- [Multi-Track Editing](/guides/multi-track-editing) - Manage multiple tracks
+- [Keyboard Shortcuts](/guides/keyboard-shortcuts) - Add keyboard controls
+- [Zoom Controls](/guides/zoom-controls) - Control waveform zoom

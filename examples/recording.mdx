@@ -1,0 +1,351 @@
+---
+title: Recording
+description: Live microphone recording with VU meter, waveform preview, and drag-and-drop file import
+---
+
+# Recording
+
+The recording example demonstrates multi-track recording with microphone input, live waveform preview, VU meter, and the ability to import audio files via drag-and-drop.
+
+[View Live Demo →](https://naomiaro.github.io/waveform-playlist/examples/recording)
+
+## What It Demonstrates
+
+- **Live recording** - Record from microphone with AudioWorklet processor
+- **Real-time waveform** - See waveform as you record
+- **VU meter** - Monitor input levels with peak indicators
+- **Device selection** - Choose from available microphones
+- **Auto-scroll** - Keeps recording in view during capture
+- **Recording positioning** - Starts from max(cursor, last clip end)
+- **Drag-and-drop import** - Add existing audio files
+- **Multi-track** - Record on multiple tracks
+
+## Complete Example
+
+```tsx
+import React, { useState, useEffect } from 'react';
+import { DndContext } from '@dnd-kit/core';
+import {
+  WaveformPlaylistProvider,
+  Waveform,
+  PlayButton,
+  PauseButton,
+  usePlaylistData,
+  usePlaybackAnimation,
+  useClipDragHandlers,
+} from '@waveform-playlist/browser';
+import {
+  RecordButton,
+  MicrophoneSelector,
+  VUMeter,
+  RecordingIndicator,
+  useIntegratedRecording,
+} from '@waveform-playlist/recording';
+
+function RecordingControlsInner({ tracks, setTracks, selectedTrackId }) {
+  const { currentTime } = usePlaybackAnimation();
+  const { sampleRate, samplesPerPixel } = usePlaylistData();
+
+  // Integrated recording hook
+  const {
+    isRecording,
+    duration,
+    level,
+    peakLevel,
+    devices,
+    hasPermission,
+    selectedDevice,
+    startRecording,
+    stopRecording,
+    requestMicAccess,
+    changeDevice,
+    error,
+    recordingPeaks,
+  } = useIntegratedRecording(tracks, setTracks, selectedTrackId, { currentTime });
+
+  // Calculate recording start position
+  let recordingStartSample = 0;
+  if (isRecording && selectedTrackId) {
+    const track = tracks.find(t => t.id === selectedTrackId);
+    if (track) {
+      const currentTimeSamples = Math.floor(currentTime * sampleRate);
+      const lastClipEnd = track.clips.length > 0
+        ? Math.max(...track.clips.map(c => c.startSample + c.durationSamples))
+        : 0;
+      recordingStartSample = Math.max(currentTimeSamples, lastClipEnd);
+    }
+  }
+
+  return (
+    <>
+      {!hasPermission ? (
+        <button onClick={requestMicAccess}>Enable Microphone</button>
+      ) : (
+        <>
+          <MicrophoneSelector
+            devices={devices}
+            selectedDeviceId={selectedDevice}
+            onDeviceChange={changeDevice}
+            disabled={isRecording}
+          />
+          
+          <RecordButton
+            isRecording={isRecording}
+            onClick={isRecording ? stopRecording : startRecording}
+          />
+          
+          {isRecording && (
+            <RecordingIndicator isRecording={isRecording} duration={duration} />
+          )}
+          
+          <VUMeter level={level} peakLevel={peakLevel} width={200} height={20} />
+        </>
+      )}
+
+      <PlayButton />
+      <PauseButton />
+
+      <Waveform
+        recordingState={
+          isRecording && selectedTrackId
+            ? {
+                isRecording: true,
+                trackId: selectedTrackId,
+                startSample: recordingStartSample,
+                durationSamples: Math.floor(duration * sampleRate),
+                peaks: recordingPeaks,
+              }
+            : undefined
+        }
+      />
+    </>
+  );
+}
+
+export function RecordingExample() {
+  const [tracks, setTracks] = useState([]);
+  const [selectedTrackId, setSelectedTrackId] = useState(null);
+
+  return (
+    <WaveformPlaylistProvider
+      tracks={tracks}
+      onTracksChange={setTracks}
+      samplesPerPixel={1024}
+      mono
+      waveHeight={100}
+      automaticScroll={true}
+    >
+      <RecordingControlsInner
+        tracks={tracks}
+        setTracks={setTracks}
+        selectedTrackId={selectedTrackId}
+        setSelectedTrackId={setSelectedTrackId}
+      />
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+## Key Features
+
+### Integrated Recording Hook
+
+The `useIntegratedRecording` hook manages the entire recording lifecycle:
+
+```tsx
+import { useIntegratedRecording } from '@waveform-playlist/recording';
+
+const {
+  // Recording state
+  isRecording,
+  duration,
+  level,          // Current input level (0-1)
+  peakLevel,      // Peak level for VU meter
+  
+  // Device management
+  devices,        // Available input devices
+  hasPermission,  // Microphone permission granted
+  selectedDevice, // Current device ID
+  
+  // Controls
+  startRecording,
+  stopRecording,
+  requestMicAccess,
+  changeDevice,
+  
+  // Data
+  error,
+  recordingPeaks, // Live waveform peaks
+} = useIntegratedRecording(tracks, setTracks, selectedTrackId, { currentTime });
+```
+
+<Note>
+  Recording requires the `@waveform-playlist/recording` package and AudioWorklet setup. See the [Recording Guide](/guides/recording) for configuration details.
+</Note>
+
+### Recording Position
+
+Recordings start at the maximum of cursor position or last clip end:
+
+```tsx
+const track = tracks.find(t => t.id === selectedTrackId);
+const currentTimeSamples = Math.floor(currentTime * sampleRate);
+
+// Find where the last clip ends on this track
+const lastClipEnd = track.clips.length > 0
+  ? Math.max(...track.clips.map(c => c.startSample + c.durationSamples))
+  : 0;
+
+// Start recording at whichever is further
+const recordingStartSample = Math.max(currentTimeSamples, lastClipEnd);
+```
+
+This ensures recordings never overlap existing clips.
+
+### Live Waveform Preview
+
+Show the recording waveform in real-time:
+
+```tsx
+<Waveform
+  recordingState={
+    isRecording && selectedTrackId
+      ? {
+          isRecording: true,
+          trackId: selectedTrackId,
+          startSample: recordingStartSample,
+          durationSamples: Math.floor(duration * sampleRate),
+          peaks: recordingPeaks, // Live peaks from AudioWorklet
+        }
+      : undefined
+  }
+/>
+```
+
+The waveform updates as audio is captured, providing visual feedback.
+
+### VU Meter
+
+Display input levels with peak hold:
+
+```tsx
+import { VUMeter } from '@waveform-playlist/recording';
+
+<VUMeter 
+  level={level}           // Current level (0-1)
+  peakLevel={peakLevel}   // Peak level with decay
+  width={200} 
+  height={20} 
+/>
+```
+
+**Features:**
+- Green zone: Safe levels
+- Yellow zone: Approaching peak
+- Red zone: Clipping/distortion warning
+- Peak hold indicator
+
+### Microphone Selection
+
+Choose from available input devices:
+
+```tsx
+import { MicrophoneSelector } from '@waveform-playlist/recording';
+
+<MicrophoneSelector
+  devices={devices}                 // Array of MediaDeviceInfo
+  selectedDeviceId={selectedDevice} // Current device ID
+  onDeviceChange={changeDevice}     // Change device callback
+  disabled={isRecording}            // Disable during recording
+/>
+```
+
+### Auto-Scroll During Recording
+
+Keep the recording in view:
+
+```tsx
+useEffect(() => {
+  if (!isRecording || !isAutomaticScroll || !scrollContainerRef.current) return;
+
+  const scrollContainer = scrollContainerRef.current;
+  const recordingEndSample = recordingStartSample + Math.floor(duration * sampleRate);
+  const recordingEndPixel = Math.floor(recordingEndSample / samplesPerPixel);
+
+  const visibleStart = scrollContainer.scrollLeft;
+  const visibleEnd = visibleStart + scrollContainer.clientWidth;
+  const bufferZone = 100;
+
+  // Scroll if recording end is near edge
+  if (recordingEndPixel > visibleEnd - bufferZone) {
+    scrollContainer.scrollLeft = recordingEndPixel - scrollContainer.clientWidth + bufferZone;
+  }
+}, [isRecording, duration, recordingStartSample]);
+```
+
+### Drag-and-Drop Import
+
+Add existing audio files:
+
+```tsx
+const handleDrop = async (e: React.DragEvent) => {
+  const files = Array.from(e.dataTransfer.files).filter(f => 
+    f.type.startsWith('audio/')
+  );
+
+  const audioContext = new AudioContext();
+
+  for (const file of files) {
+    const arrayBuffer = await file.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+    const track = createTrack({
+      name: file.name,
+      clips: [createClipFromSeconds({ audioBuffer, startTime: 0 })],
+    });
+
+    setTracks(prev => [...prev, track]);
+  }
+};
+
+<div 
+  onDrop={handleDrop}
+  onDragOver={(e) => e.preventDefault()}
+>
+  Drop audio files here
+</div>
+```
+
+## AudioWorklet Setup
+
+Recording requires copying the AudioWorklet processor to your public directory:
+
+```bash
+# Copy worklet from package
+cp node_modules/@waveform-playlist/recording/dist/recording-processor.worklet.js public/
+```
+
+Then register it before recording:
+
+```tsx
+import { registerRecordingWorklet } from '@waveform-playlist/recording';
+
+useEffect(() => {
+  registerRecordingWorklet('/recording-processor.worklet.js');
+}, []);
+```
+
+See the [Recording Guide](/guides/recording#audioworklet-setup) for full setup instructions.
+
+## Source Code
+
+View the complete source code:
+- **Example component:** `website/src/components/examples/RecordingExample.tsx`
+- **Recording package:** `packages/recording/src/`
+
+## Related
+
+- [Recording Guide](/guides/recording)
+- [useIntegratedRecording Hook](/api/hooks/recording)
+- [Recording Components](/api/components/recording-controls)
+- [AudioWorklet Setup](/guides/recording#audioworklet-setup)

@@ -1,0 +1,421 @@
+---
+title: Annotations
+description: Add time-synced text annotations with boundary editing and continuous playback
+---
+
+# Annotations
+
+Waveform Playlist supports time-synchronized text annotations with drag-to-edit boundaries, automatic scrolling, and keyboard navigation.
+
+## Basic Setup
+
+```typescript
+import { WaveformPlaylistProvider } from '@waveform-playlist/browser';
+import { AnnotationProvider, parseAeneas } from '@waveform-playlist/annotations';
+import type { AnnotationData } from '@waveform-playlist/core';
+
+function PlaylistWithAnnotations() {
+  const [annotations, setAnnotations] = useState<AnnotationData[]>([
+    { id: 'ann-1', start: 0, end: 5, text: 'Introduction' },
+    { id: 'ann-2', start: 5, end: 12, text: 'Verse 1' },
+    { id: 'ann-3', start: 12, end: 20, text: 'Chorus' },
+  ]);
+
+  const { tracks } = useAudioTracks([{ src: 'audio.mp3' }]);
+
+  return (
+    <AnnotationProvider>
+      <WaveformPlaylistProvider
+        tracks={tracks}
+        annotationList={{
+          annotations,
+          editable: true,
+          linkEndpoints: true,
+        }}
+        onAnnotationsChange={setAnnotations}  // Required for edits to persist
+      >
+        {/* Playlist UI */}
+      </WaveformPlaylistProvider>
+    </AnnotationProvider>
+  );
+}
+```
+
+## AnnotationData Interface
+
+```typescript
+interface AnnotationData {
+  id: string;           // Unique identifier
+  start: number;        // Start time in seconds
+  end: number;          // End time in seconds
+  text: string;         // Annotation text
+  language?: string;    // Optional language code
+}
+```
+
+Location: `packages/core/src/types.ts`
+
+## Annotation Controls Hook
+
+The `useAnnotationControls` hook manages annotation state and boundary logic:
+
+```typescript
+import { useAnnotationControls } from '@waveform-playlist/annotations';
+
+function AnnotationEditor() {
+  const {
+    continuousPlay,
+    linkEndpoints,
+    setContinuousPlay,
+    setLinkEndpoints,
+    updateAnnotationBoundaries,
+  } = useAnnotationControls({
+    initialContinuousPlay: false,
+    initialLinkEndpoints: true,
+  });
+
+  return (
+    <div>
+      <label>
+        <input
+          type="checkbox"
+          checked={continuousPlay}
+          onChange={(e) => setContinuousPlay(e.target.checked)}
+        />
+        Continuous Play
+      </label>
+      
+      <label>
+        <input
+          type="checkbox"
+          checked={linkEndpoints}
+          onChange={(e) => setLinkEndpoints(e.target.checked)}
+        />
+        Link Endpoints
+      </label>
+    </div>
+  );
+}
+```
+
+Location: `packages/annotations/src/hooks/useAnnotationControls.ts`
+
+## Hook Interface
+
+```typescript
+interface UseAnnotationControlsReturn {
+  continuousPlay: boolean;         // Auto-play next annotation
+  linkEndpoints: boolean;          // Link adjacent annotation boundaries
+  setContinuousPlay: (value: boolean) => void;
+  setLinkEndpoints: (value: boolean) => void;
+  updateAnnotationBoundaries: (params: AnnotationUpdateParams) => AnnotationData[];
+}
+
+interface AnnotationUpdateParams {
+  annotationIndex: number;
+  newTime: number;
+  isDraggingStart: boolean;        // true = start edge, false = end edge
+  annotations: AnnotationData[];
+  duration: number;
+  linkEndpoints: boolean;
+}
+```
+
+Location: `packages/annotations/src/hooks/useAnnotationControls.ts:20-26`
+
+## Continuous Play Mode
+
+When enabled, playback automatically continues to the next annotation:
+
+```typescript
+const { continuousPlay, setContinuousPlay } = useAnnotationControls();
+
+// Enable continuous play
+setContinuousPlay(true);
+
+// Playback flow:
+// 1. User clicks annotation or presses Space
+// 2. Plays annotation from start to end
+// 3. Automatically starts next annotation
+// 4. Continues until last annotation or user stops
+```
+
+Location: `packages/annotations/src/hooks/useAnnotationControls.ts:37`
+
+## Link Endpoints Mode
+
+When enabled, dragging one annotation's boundary moves adjacent boundaries:
+
+```typescript
+const { linkEndpoints, setLinkEndpoints } = useAnnotationControls();
+
+// Enable linked boundaries
+setLinkEndpoints(true);
+
+// Behavior:
+// - Dragging annotation end → moves next annotation start
+// - Dragging annotation start → moves previous annotation end
+// - Prevents gaps between annotations
+// - Cascades through multiple linked annotations
+```
+
+Without link endpoints, dragging pushes adjacent annotations (collision detection).
+
+Location: `packages/annotations/src/hooks/useAnnotationControls.ts:38`
+
+## Boundary Update Logic
+
+```typescript
+const { updateAnnotationBoundaries } = useAnnotationControls();
+
+const newAnnotations = updateAnnotationBoundaries({
+  annotationIndex: 1,              // Which annotation
+  newTime: 7.5,                    // New boundary time
+  isDraggingStart: false,          // Dragging end boundary
+  annotations: currentAnnotations,
+  duration: totalDuration,
+  linkEndpoints: true,
+});
+
+setAnnotations(newAnnotations);
+```
+
+The function handles:
+- Boundary constraints (min 0.1s duration)
+- Collision detection
+- Linked endpoint cascading
+- Timeline boundary enforcement
+
+Location: `packages/annotations/src/hooks/useAnnotationControls.ts:45-176`
+
+## Parsing Aeneas Format
+
+Import annotations from BBC audiowaveform / aeneas JSON:
+
+```typescript
+import { parseAeneas } from '@waveform-playlist/annotations';
+
+const aeneasJson = {
+  fragments: [
+    { begin: '0.000', end: '5.120', lines: ['Introduction'] },
+    { begin: '5.120', end: '12.340', lines: ['Verse 1', 'First verse'] },
+    { begin: '12.340', end: '20.000', lines: ['Chorus'] },
+  ],
+};
+
+const annotations = parseAeneas(aeneasJson);
+// [
+//   { id: 'ann-0', start: 0, end: 5.12, text: 'Introduction' },
+//   { id: 'ann-1', start: 5.12, end: 12.34, text: 'Verse 1\nFirst verse' },
+//   { id: 'ann-2', start: 12.34, end: 20, text: 'Chorus' },
+// ]
+```
+
+Location: `packages/annotations/src/parsers/aeneas.ts`
+
+## Pre-built Components
+
+The annotations package provides ready-made components:
+
+```typescript
+import {
+  AnnotationsTrack,
+  ContinuousPlayCheckbox,
+  LinkEndpointsCheckbox,
+  EditableCheckbox,
+  DownloadAnnotationsButton,
+} from '@waveform-playlist/annotations';
+
+function AnnotationControls() {
+  return (
+    <div>
+      <ContinuousPlayCheckbox />
+      <LinkEndpointsCheckbox />
+      <EditableCheckbox />
+      <DownloadAnnotationsButton />
+    </div>
+  );
+}
+```
+
+Location: `packages/annotations/src/components/`
+
+## Integration Context Pattern
+
+The browser package defines the interface, annotations package provides the implementation:
+
+```typescript
+// In your app:
+import { AnnotationProvider } from '@waveform-playlist/annotations';
+
+// Wrap your app with AnnotationProvider:
+<AnnotationProvider>
+  <WaveformPlaylistProvider
+    annotationList={{ annotations, editable: true }}
+    onAnnotationsChange={setAnnotations}
+  >
+    {/* Components can now use annotation features */}
+  </WaveformPlaylistProvider>
+</AnnotationProvider>
+```
+
+Location: `packages/annotations/CLAUDE.md`
+
+## Important: onAnnotationsChange Requirement
+
+Always pair `annotationList` with `onAnnotationsChange`:
+
+```typescript
+// CORRECT - edits persist:
+<WaveformPlaylistProvider
+  annotationList={{ annotations, editable: true }}
+  onAnnotationsChange={setAnnotations}
+/>
+
+// WRONG - edits don't persist, console warning:
+<WaveformPlaylistProvider
+  annotationList={{ annotations, editable: true }}
+  // Missing onAnnotationsChange!
+/>
+```
+
+Without the callback, boundary edits won't update your state.
+
+Location: `packages/annotations/CLAUDE.md`
+
+## Keyboard Navigation
+
+The `useAnnotationKeyboardControls` hook provides keyboard shortcuts:
+
+- Arrow keys: Navigate annotations
+- Space: Play current annotation
+- Enter: Edit annotation text
+- Escape: Cancel edit
+
+Location: `packages/browser/src/hooks/useAnnotationKeyboardControls.ts`
+
+## Active Annotation
+
+Track which annotation is selected:
+
+```typescript
+import { usePlaylistState, usePlaylistControls } from '@waveform-playlist/browser';
+
+function AnnotationList({ annotations }: { annotations: AnnotationData[] }) {
+  const { activeAnnotationId } = usePlaylistState();
+  const { setActiveAnnotationId } = usePlaylistControls();
+
+  return (
+    <div>
+      {annotations.map((ann) => (
+        <div
+          key={ann.id}
+          onClick={() => setActiveAnnotationId(ann.id)}
+          style={{
+            background: activeAnnotationId === ann.id ? '#4CAF50' : '#333',
+          }}
+        >
+          {ann.text}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+Location: `packages/browser/src/WaveformPlaylistContext.tsx:90`
+
+## Editing Annotations
+
+Enable editing via the `editable` flag:
+
+```typescript
+<WaveformPlaylistProvider
+  annotationList={{
+    annotations,
+    editable: true,           // Enable boundary dragging
+    linkEndpoints: false,     // Collision detection mode
+  }}
+  onAnnotationsChange={setAnnotations}
+/>
+```
+
+Users can drag annotation boundaries to adjust timing.
+
+## Example: Complete Annotation Editor
+
+```typescript
+import { useState } from 'react';
+import { WaveformPlaylistProvider, useAudioTracks } from '@waveform-playlist/browser';
+import {
+  AnnotationProvider,
+  useAnnotationControls,
+  ContinuousPlayCheckbox,
+  LinkEndpointsCheckbox,
+  parseAeneas,
+} from '@waveform-playlist/annotations';
+import type { AnnotationData } from '@waveform-playlist/core';
+
+function AnnotationEditor() {
+  const [annotations, setAnnotations] = useState<AnnotationData[]>([
+    { id: 'ann-1', start: 0, end: 5, text: 'Intro' },
+    { id: 'ann-2', start: 5, end: 12, text: 'Main content' },
+    { id: 'ann-3', start: 12, end: 20, text: 'Outro' },
+  ]);
+
+  const { tracks, loading } = useAudioTracks([{ src: 'narration.mp3' }]);
+
+  const handleFileImport = async (file: File) => {
+    const json = JSON.parse(await file.text());
+    const imported = parseAeneas(json);
+    setAnnotations(imported);
+  };
+
+  if (loading) return <div>Loading audio...</div>;
+
+  return (
+    <AnnotationProvider>
+      <div>
+        <input
+          type="file"
+          accept=".json"
+          onChange={(e) => e.target.files?.[0] && handleFileImport(e.target.files[0])}
+        />
+        
+        <div>
+          <ContinuousPlayCheckbox />
+          <LinkEndpointsCheckbox />
+        </div>
+
+        <WaveformPlaylistProvider
+          tracks={tracks}
+          annotationList={{
+            annotations,
+            editable: true,
+            linkEndpoints: true,
+          }}
+          onAnnotationsChange={setAnnotations}
+        >
+          {/* Playlist UI with annotation track */}
+        </WaveformPlaylistProvider>
+
+        {/* Annotation list */}
+        <div>
+          {annotations.map((ann, i) => (
+            <div key={ann.id}>
+              <strong>{i + 1}.</strong> {ann.start.toFixed(2)}s - {ann.end.toFixed(2)}s
+              <div>{ann.text}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </AnnotationProvider>
+  );
+}
+```
+
+## Next Steps
+
+- [Keyboard Shortcuts](/guides/keyboard-shortcuts) - Custom annotation shortcuts
+- [Playback Controls](/guides/playback-controls) - Control annotation playback
+- [Export WAV](/guides/export-wav) - Export audio with annotations

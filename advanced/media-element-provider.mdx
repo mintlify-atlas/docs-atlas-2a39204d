@@ -1,0 +1,464 @@
+---
+title: MediaElement Provider
+description: Single-track playback with pitch-preserving playback rate using HTMLAudioElement
+---
+
+# MediaElement Provider
+
+The `MediaElementPlaylistProvider` is a simplified playlist provider for single-track playback using `HTMLAudioElement`. It offers pitch-preserving playback rate control (0.5x - 2.0x) without loading the full audio into memory.
+
+## When to Use MediaElement Provider
+
+Choose `MediaElementPlaylistProvider` for:
+
+- **Language learning apps** - Speed control for pronunciation practice
+- **Podcast players** - Variable playback rate without pitch shift
+- **Single-track audio viewers** - Simple visualization without editing
+- **Large audio files** - Stream audio instead of loading into AudioBuffer
+- **Limited memory environments** - Mobile devices with memory constraints
+
+Choose `WaveformPlaylistProvider` for:
+
+- **Multi-track editing** - Mix multiple audio sources
+- **Real-time effects** - Apply Tone.js effects during playback
+- **Recording** - Capture audio from microphone
+- **Precise editing** - Sample-accurate clip trimming and splitting
+
+## Basic Usage
+
+```tsx
+import {
+  MediaElementPlaylistProvider,
+  useMediaElementControls,
+  useMediaElementState,
+} from '@waveform-playlist/browser';
+import { Waveform } from '@waveform-playlist/ui-components';
+
+function Player() {
+  const track = {
+    source: '/audio/speech.mp3',
+    waveformData: precomputedPeaks, // WaveformData object
+    name: 'Lesson 1',
+  };
+  
+  return (
+    <MediaElementPlaylistProvider
+      track={track}
+      playbackRate={1.0}
+      samplesPerPixel={1024}
+    >
+      <Waveform />
+      <Controls />
+    </MediaElementPlaylistProvider>
+  );
+}
+
+function Controls() {
+  const { play, pause, setPlaybackRate } = useMediaElementControls();
+  const { playbackRate } = useMediaElementState();
+  
+  return (
+    <div>
+      <button onClick={() => play()}>Play</button>
+      <button onClick={() => pause()}>Pause</button>
+      
+      <label>
+        Speed: {playbackRate}x
+        <input
+          type="range"
+          min={0.5}
+          max={2.0}
+          step={0.1}
+          value={playbackRate}
+          onChange={(e) => setPlaybackRate(parseFloat(e.target.value))}
+        />
+      </label>
+    </div>
+  );
+}
+```
+
+## Track Configuration
+
+```typescript
+interface MediaElementTrackConfig {
+  source: string;              // Audio source URL or Blob URL
+  waveformData: WaveformDataObject; // Pre-computed waveform peaks
+  name?: string;               // Track name for display
+}
+```
+
+### Pre-computing Waveform Data
+
+The MediaElement provider requires pre-computed peaks for visualization:
+
+```tsx
+import WaveformData from 'waveform-data';
+
+async function generatePeaks(audioUrl: string) {
+  // Fetch audio file
+  const response = await fetch(audioUrl);
+  const arrayBuffer = await response.arrayBuffer();
+  
+  // Decode to AudioBuffer
+  const audioContext = new AudioContext();
+  const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+  
+  // Generate waveform data
+  const waveformData = WaveformData.create(audioBuffer);
+  
+  // Use in provider
+  return {
+    source: audioUrl,
+    waveformData: waveformData,
+    name: 'Track Name',
+  };
+}
+```
+
+Or use a server-side tool like [audiowaveform](https://github.com/bbc/audiowaveform):
+
+```bash
+audiowaveform -i speech.mp3 -o speech.json --pixels-per-second 50
+```
+
+```tsx
+const response = await fetch('/peaks/speech.json');
+const peaksData = await response.json();
+const waveformData = WaveformData.create(peaksData);
+```
+
+## Provider Props
+
+```typescript
+interface MediaElementPlaylistProviderProps {
+  track: MediaElementTrackConfig;
+  samplesPerPixel?: number;     // Default: 1024
+  waveHeight?: number;          // Default: 100
+  timescale?: boolean;          // Default: false
+  playbackRate?: number;        // Default: 1 (range: 0.5 - 2.0)
+  automaticScroll?: boolean;    // Default: false
+  theme?: Partial<WaveformPlaylistTheme>;
+  controls?: { show: boolean; width: number };
+  annotationList?: {
+    annotations?: AnnotationData[];
+    isContinuousPlay?: boolean;
+  };
+  barWidth?: number;            // Default: 1
+  barGap?: number;              // Default: 0
+  progressBarWidth?: number;    // Default: barWidth + barGap
+  onAnnotationsChange?: (annotations: AnnotationData[]) => void;
+  onReady?: () => void;
+  children: ReactNode;
+}
+```
+
+## Playback Rate Control
+
+The key feature of MediaElement provider is pitch-preserving playback rate:
+
+```tsx
+function SpeedControl() {
+  const { setPlaybackRate } = useMediaElementControls();
+  const { playbackRate } = useMediaElementState();
+  
+  return (
+    <div>
+      <button onClick={() => setPlaybackRate(0.5)}>0.5x</button>
+      <button onClick={() => setPlaybackRate(0.75)}>0.75x</button>
+      <button onClick={() => setPlaybackRate(1.0)}>1.0x</button>
+      <button onClick={() => setPlaybackRate(1.25)}>1.25x</button>
+      <button onClick={() => setPlaybackRate(1.5)}>1.5x</button>
+      <button onClick={() => setPlaybackRate(2.0)}>2.0x</button>
+      
+      <input
+        type="range"
+        min={0.5}
+        max={2.0}
+        step={0.05}
+        value={playbackRate}
+        onChange={(e) => setPlaybackRate(parseFloat(e.target.value))}
+      />
+    </div>
+  );
+}
+```
+
+Playback rate is clamped to the range 0.5 - 2.0:
+
+```typescript
+// Rates outside the range are automatically clamped
+setPlaybackRate(3.0);  // Sets to 2.0
+setPlaybackRate(0.25); // Sets to 0.5
+```
+
+## Hooks
+
+Four context hooks provide access to different aspects of the player:
+
+### useMediaElementAnimation
+
+High-frequency updates for playback position (avoid using in complex components):
+
+```tsx
+const { isPlaying, currentTime, currentTimeRef } = useMediaElementAnimation();
+```
+
+### useMediaElementState
+
+Playlist state (annotations, playback rate, etc.):
+
+```tsx
+const {
+  continuousPlay,
+  annotations,
+  activeAnnotationId,
+  playbackRate,
+  isAutomaticScroll,
+} = useMediaElementState();
+```
+
+### useMediaElementControls
+
+Playback controls and setters:
+
+```tsx
+const {
+  play,
+  pause,
+  stop,
+  seekTo,
+  setPlaybackRate,
+  setContinuousPlay,
+  setAnnotations,
+  setActiveAnnotationId,
+  setAutomaticScroll,
+  setScrollContainer,
+  scrollContainerRef,
+} = useMediaElementControls();
+```
+
+### useMediaElementData
+
+Playlist data (duration, peaks, dimensions):
+
+```tsx
+const {
+  duration,
+  peaksDataArray,
+  sampleRate,
+  waveHeight,
+  timeScaleHeight,
+  samplesPerPixel,
+  playoutRef,
+  controls,
+  barWidth,
+  barGap,
+  progressBarWidth,
+} = useMediaElementData();
+```
+
+## Annotations with MediaElement
+
+MediaElement provider supports the same annotation system as the full provider:
+
+```tsx
+import { parseAeneas } from '@waveform-playlist/annotations';
+
+function AnnotatedPlayer() {
+  const [annotations, setAnnotations] = useState<AnnotationData[]>([]);
+  
+  useEffect(() => {
+    fetch('/subtitles/lesson1.json')
+      .then((res) => res.json())
+      .then((data) => {
+        const parsed = parseAeneas(data);
+        setAnnotations(parsed);
+      });
+  }, []);
+  
+  return (
+    <MediaElementPlaylistProvider
+      track={track}
+      annotationList={{
+        annotations,
+        isContinuousPlay: true,
+      }}
+      onAnnotationsChange={setAnnotations}
+    >
+      <Waveform showAnnotations />
+      <AnnotationControls />
+    </MediaElementPlaylistProvider>
+  );
+}
+```
+
+<Note>
+  Annotations must be pre-parsed with numeric `start` and `end` values. Use `parseAeneas()` from `@waveform-playlist/annotations` before passing to the provider.
+</Note>
+
+## Automatic Scroll
+
+Keep the playhead centered during playback:
+
+```tsx
+<MediaElementPlaylistProvider
+  track={track}
+  automaticScroll={true}
+>
+  <Waveform />
+</MediaElementPlaylistProvider>
+```
+
+Or control it dynamically:
+
+```tsx
+function Player() {
+  const { setAutomaticScroll } = useMediaElementControls();
+  const { isAutomaticScroll } = useMediaElementState();
+  
+  return (
+    <>
+      <label>
+        <input
+          type="checkbox"
+          checked={isAutomaticScroll}
+          onChange={(e) => setAutomaticScroll(e.target.checked)}
+        />
+        Auto-scroll
+      </label>
+    </>
+  );
+}
+```
+
+## Implementation Details
+
+<Accordion title="How MediaElement provider works">
+  The MediaElement provider uses `@waveform-playlist/media-element-playout` internally:
+  
+  1. **Audio playback**: Uses `HTMLAudioElement` with `playbackRate` property
+  2. **Peaks visualization**: Renders pre-computed `WaveformData` via canvas
+  3. **Time sync**: Polls `audioElement.currentTime` in requestAnimationFrame loop
+  4. **Pitch preservation**: Native browser implementation (no Web Audio processing)
+  
+  The playout class (`MediaElementPlayout`) wraps a single audio element and provides the same interface as the Tone.js adapter, allowing seamless component reuse.
+</Accordion>
+
+## Use Cases
+
+### Language Learning App
+
+```tsx
+function LanguageLessonPlayer({ lessonId }: { lessonId: string }) {
+  const [track, setTrack] = useState(null);
+  const [playbackRate, setPlaybackRate] = useState(1.0);
+  
+  useEffect(() => {
+    // Load lesson audio + peaks
+    loadLesson(lessonId).then(setTrack);
+  }, [lessonId]);
+  
+  if (!track) return <div>Loading...</div>;
+  
+  return (
+    <MediaElementPlaylistProvider
+      track={track}
+      playbackRate={playbackRate}
+      annotationList={{
+        annotations: track.subtitles,
+        isContinuousPlay: false, // Pause at each phrase
+      }}
+      automaticScroll
+    >
+      <Waveform showAnnotations />
+      
+      <div>
+        <button onClick={() => setPlaybackRate(0.5)}>Slow</button>
+        <button onClick={() => setPlaybackRate(1.0)}>Normal</button>
+        <button onClick={() => setPlaybackRate(1.5)}>Fast</button>
+      </div>
+    </MediaElementPlaylistProvider>
+  );
+}
+```
+
+### Podcast Player
+
+```tsx
+function PodcastPlayer({ episodeUrl, peaksUrl }: Props) {
+  const [track, setTrack] = useState(null);
+  const [playbackRate, setPlaybackRate] = useState(1.0);
+  
+  useEffect(() => {
+    fetch(peaksUrl)
+      .then((res) => res.json())
+      .then((data) => {
+        setTrack({
+          source: episodeUrl,
+          waveformData: WaveformData.create(data),
+          name: 'Episode Title',
+        });
+      });
+  }, [episodeUrl, peaksUrl]);
+  
+  if (!track) return null;
+  
+  return (
+    <MediaElementPlaylistProvider
+      track={track}
+      playbackRate={playbackRate}
+      samplesPerPixel={2048} // Lower resolution for long episodes
+    >
+      <Waveform />
+      <SpeedControl onSpeedChange={setPlaybackRate} />
+    </MediaElementPlaylistProvider>
+  );
+}
+```
+
+## Limitations
+
+<Warning>
+  MediaElement provider does NOT support:
+  
+  - Multi-track mixing
+  - Audio effects (reverb, delay, EQ, etc.)
+  - Recording from microphone
+  - Clip-based editing (trim, split, move)
+  - WAV export with effects
+  
+  For these features, use `WaveformPlaylistProvider` instead.
+</Warning>
+
+## Migration from Full Provider
+
+If you have a single-track use case with the full provider:
+
+```tsx
+// Before: Full provider for single track
+<WaveformPlaylistProvider tracks={[track]}>
+  <Waveform />
+</WaveformPlaylistProvider>
+
+// After: MediaElement provider
+<MediaElementPlaylistProvider track={track}>
+  <Waveform />
+</MediaElementPlaylistProvider>
+```
+
+Benefits:
+- Simpler API (no track array)
+- Built-in playback rate control
+- Lower memory usage (no AudioBuffer)
+- Faster initial load (streaming instead of decode)
+
+## Browser Compatibility
+
+`playbackRate` with pitch preservation is supported in all modern browsers:
+
+- Chrome/Edge: Yes (preservesPitch = true by default)
+- Firefox: Yes (mozPreservesPitch)
+- Safari: Yes (preservesPitch in iOS 15+)
+
+No polyfills needed for modern browsers.

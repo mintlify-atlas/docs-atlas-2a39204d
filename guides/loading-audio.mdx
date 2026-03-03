@@ -1,0 +1,232 @@
+---
+title: Loading Audio
+description: Learn how to load audio files into your playlist using the useAudioTracks hook
+---
+
+# Loading Audio
+
+The `useAudioTracks` hook fetches audio files, decodes them, and creates `ClipTrack` objects ready for use with the playlist.
+
+## Basic Usage
+
+```typescript
+import { useAudioTracks } from '@waveform-playlist/browser';
+import { WaveformPlaylistProvider } from '@waveform-playlist/browser';
+
+function MyPlaylist() {
+  const { tracks, loading, error } = useAudioTracks([
+    { src: 'audio/vocals.mp3', name: 'Vocals' },
+    { src: 'audio/drums.mp3', name: 'Drums' },
+    { src: 'audio/bass.mp3', name: 'Bass' },
+  ]);
+
+  if (loading) return <div>Loading audio...</div>;
+  if (error) return <div>Error: {error}</div>;
+
+  return (
+    <WaveformPlaylistProvider tracks={tracks}>
+      {/* Your playlist UI */}
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+## AudioTrackConfig Interface
+
+Each track configuration accepts the following properties:
+
+```typescript
+interface AudioTrackConfig {
+  // Audio source (choose one method):
+  src?: string;                    // URL to fetch and decode
+  audioBuffer?: AudioBuffer;       // Pre-loaded buffer (skip fetch/decode)
+  waveformData?: WaveformDataObject; // Peaks-first rendering (instant visual)
+
+  // Track properties
+  name?: string;
+  muted?: boolean;
+  soloed?: boolean;
+  volume?: number;                 // 0.0 to 1.0 (default: 1.0)
+  pan?: number;                    // -1.0 to 1.0 (default: 0)
+  color?: string;
+
+  // Multi-clip positioning
+  startTime?: number;              // Timeline position in seconds (default: 0)
+  duration?: number;               // Clip duration (default: full audio)
+  offset?: number;                 // Offset into source file (default: 0)
+
+  // Fades
+  fadeIn?: Fade;
+  fadeOut?: Fade;
+
+  // Effects
+  effects?: TrackEffectsFunction;
+
+  // Visualization
+  renderMode?: 'waveform' | 'spectrogram' | 'both';
+  spectrogramConfig?: SpectrogramConfig;
+  spectrogramColorMap?: ColorMapValue;
+}
+```
+
+Location: `packages/browser/src/hooks/useAudioTracks.ts:26-55`
+
+## Three Ways to Load Audio
+
+### 1. URL Loading (Standard)
+
+Fetch and decode from a URL:
+
+```typescript
+const { tracks, loading } = useAudioTracks([
+  { src: '/audio/song.mp3', name: 'Song' },
+]);
+```
+
+### 2. Pre-loaded AudioBuffer
+
+Skip fetch and decode by providing a buffer directly:
+
+```typescript
+const buffer = await loadMyAudioBuffer();
+
+const { tracks } = useAudioTracks([
+  { audioBuffer: buffer, name: 'Pre-loaded Track' },
+]);
+```
+
+### 3. Peaks-First Rendering
+
+Render waveforms instantly using pre-computed peaks (BBC audiowaveform format):
+
+```typescript
+import peaksData from './vocals.json';
+
+const { tracks } = useAudioTracks([
+  { 
+    waveformData: peaksData,
+    name: 'Vocals',
+    // Audio loads later or not at all (visualization only)
+  },
+]);
+```
+
+Sample rate and duration are derived from `waveformData.sample_rate` and `waveformData.duration`.
+
+## Progressive Loading
+
+By default, `useAudioTracks` waits for all tracks to load before returning them. Use progressive mode to show tracks as they load:
+
+```typescript
+const { tracks, loading, loadedCount, totalCount } = useAudioTracks(
+  [
+    { src: 'audio/vocals.mp3', name: 'Vocals' },
+    { src: 'audio/drums.mp3', name: 'Drums' },
+    { src: 'audio/bass.mp3', name: 'Bass' },
+  ],
+  { progressive: true } // Tracks appear as they load
+);
+
+if (loading) {
+  return <div>Loading {loadedCount}/{totalCount} tracks...</div>;
+}
+```
+
+Location: `packages/browser/src/hooks/useAudioTracks.ts:60-67`
+
+## Multi-Clip Positioning
+
+Create staggered arrangements by setting `startTime` for each clip:
+
+```typescript
+const { tracks } = useAudioTracks([
+  { 
+    src: 'vocals.mp3', 
+    name: 'Vocals',
+    startTime: 0,     // Starts at beginning
+  },
+  { 
+    src: 'drums.mp3', 
+    name: 'Drums',
+    startTime: 2.5,   // Starts 2.5 seconds in
+  },
+  { 
+    src: 'bass.mp3', 
+    name: 'Bass',
+    startTime: 5.0,   // Starts 5 seconds in
+  },
+]);
+```
+
+## Trimming Clips
+
+Load only a portion of the audio file:
+
+```typescript
+const { tracks } = useAudioTracks([
+  { 
+    src: 'long-recording.mp3',
+    name: 'Excerpt',
+    offset: 10,      // Skip first 10 seconds
+    duration: 30,    // Play 30 seconds
+    startTime: 0,    // Place at timeline start
+  },
+]);
+```
+
+## Adding Fades
+
+```typescript
+const { tracks } = useAudioTracks([
+  { 
+    src: 'audio.mp3',
+    name: 'Track with Fades',
+    fadeIn: { duration: 1.0, type: 'linear' },
+    fadeOut: { duration: 2.0, type: 'exponential' },
+  },
+]);
+```
+
+Fade types: `'linear'`, `'exponential'`, `'logarithmic'`, `'sCurve'`
+
+## Return Values
+
+```typescript
+interface UseAudioTracksReturn {
+  tracks: ClipTrack[];     // Array of loaded tracks
+  loading: boolean;        // True while any track is loading
+  error: string | null;    // Error message if loading failed
+  loadedCount: number;     // Number of tracks loaded so far
+  totalCount: number;      // Total number of tracks to load
+}
+```
+
+Location: `packages/browser/src/hooks/useAudioTracks.ts:294`
+
+## Error Handling
+
+```typescript
+const { tracks, loading, error } = useAudioTracks([
+  { src: 'audio/vocals.mp3' },
+]);
+
+if (error) {
+  console.error('Failed to load audio:', error);
+  return <div>Could not load audio: {error}</div>;
+}
+```
+
+## Cleanup on Unmount
+
+The hook automatically:
+- Cancels in-flight fetch requests using `AbortController`
+- Prevents state updates after unmount
+- Cleans up resources
+
+Location: `packages/browser/src/hooks/useAudioTracks.ts:288-291`
+
+## Next Steps
+
+- [Multi-Track Editing](/guides/multi-track-editing) - Add multiple clips to tracks
+- [Audio Effects](/guides/audio-effects) - Apply Tone.js effects to tracks
+- [Playback Controls](/guides/playback-controls) - Control audio playback

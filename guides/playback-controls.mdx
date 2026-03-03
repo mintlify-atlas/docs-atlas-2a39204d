@@ -1,0 +1,305 @@
+---
+title: Playback Controls
+description: Control audio playback with play, pause, stop, and seek operations
+---
+
+# Playback Controls
+
+The `usePlaylistControls` hook provides methods to control audio playback in your playlist.
+
+## Basic Usage
+
+```typescript
+import { usePlaylistControls, usePlaybackAnimation } from '@waveform-playlist/browser';
+
+function PlaybackButtons() {
+  const { play, pause, stop, setCurrentTime } = usePlaylistControls();
+  const { isPlaying, currentTime } = usePlaybackAnimation();
+
+  return (
+    <div>
+      <button onClick={() => play()}>Play</button>
+      <button onClick={pause} disabled={!isPlaying}>Pause</button>
+      <button onClick={stop} disabled={!isPlaying}>Stop</button>
+      <button onClick={() => setCurrentTime(0)}>Rewind</button>
+      <div>Time: {currentTime.toFixed(2)}s</div>
+    </div>
+  );
+}
+```
+
+## Core Playback Methods
+
+### play(startTime?, playDuration?)
+
+Start audio playback from a specific time:
+
+```typescript
+const { play } = usePlaylistControls();
+const { currentTimeRef } = usePlaybackAnimation();
+
+// Play from current position
+await play(currentTimeRef.current ?? 0);
+
+// Play from 5 seconds
+await play(5.0);
+
+// Play selection for 10 seconds, then stop
+await play(startTime, 10.0);
+```
+
+Location: `packages/browser/src/WaveformPlaylistContext.tsx:101`
+
+### pause()
+
+Pause playback at current position:
+
+```typescript
+const { pause } = usePlaylistControls();
+const { isPlaying } = usePlaybackAnimation();
+
+if (isPlaying) {
+  pause();
+}
+```
+
+Location: `packages/browser/src/WaveformPlaylistContext.tsx:102`
+
+### stop()
+
+Stop playback and return to start:
+
+```typescript
+const { stop } = usePlaylistControls();
+
+stop(); // Stops and resets to beginning
+```
+
+Location: `packages/browser/src/WaveformPlaylistContext.tsx:103`
+
+### setCurrentTime(time)
+
+Seek to a specific time without affecting playback state:
+
+```typescript
+const { setCurrentTime } = usePlaylistControls();
+
+// Jump to 10 seconds
+setCurrentTime(10.0);
+
+// Return to start
+setCurrentTime(0);
+```
+
+Location: `packages/browser/src/WaveformPlaylistContext.tsx:105`
+
+## Pre-built Control Components
+
+Use ready-made button components:
+
+```typescript
+import { 
+  PlayButton, 
+  PauseButton, 
+  StopButton, 
+  RewindButton,
+  SkipBackwardButton,
+  SkipForwardButton,
+} from '@waveform-playlist/browser';
+
+function Controls() {
+  return (
+    <div>
+      <RewindButton />
+      <SkipBackwardButton skipAmount={5} />
+      <PlayButton />
+      <PauseButton />
+      <StopButton />
+      <SkipForwardButton skipAmount={5} />
+    </div>
+  );
+}
+```
+
+Location: `packages/browser/src/components/PlaybackControls.tsx`
+
+## PlayButton Implementation
+
+The `PlayButton` handles selection playback automatically:
+
+```typescript
+export const PlayButton: React.FC = () => {
+  const { isPlaying, currentTimeRef } = usePlaybackAnimation();
+  const { selectionStart, selectionEnd, isLoopEnabled } = usePlaylistState();
+  const { play } = usePlaylistControls();
+
+  const handleClick = async () => {
+    const hasSelection = selectionStart !== selectionEnd && selectionEnd > selectionStart;
+
+    if (hasSelection && !isLoopEnabled) {
+      // Play selection region only, then stop
+      const duration = selectionEnd - selectionStart;
+      await play(selectionStart, duration);
+    } else {
+      // Play from current position (loop handled by Transport)
+      await play(currentTimeRef.current ?? 0);
+    }
+  };
+
+  return (
+    <BaseControlButton onClick={handleClick} disabled={isPlaying}>
+      Play
+    </BaseControlButton>
+  );
+};
+```
+
+Location: `packages/browser/src/components/PlaybackControls.tsx:10-34`
+
+## Custom Skip Buttons
+
+```typescript
+function CustomSkipControls() {
+  const { currentTimeRef, isPlaying } = usePlaybackAnimation();
+  const { play, setCurrentTime } = usePlaylistControls();
+
+  const skipBackward = (seconds: number) => {
+    const newTime = Math.max(0, (currentTimeRef.current ?? 0) - seconds);
+    setCurrentTime(newTime);
+    
+    if (isPlaying) {
+      play(newTime);
+    }
+  };
+
+  const skipForward = (seconds: number) => {
+    const newTime = (currentTimeRef.current ?? 0) + seconds;
+    setCurrentTime(newTime);
+    
+    if (isPlaying) {
+      play(newTime);
+    }
+  };
+
+  return (
+    <>
+      <button onClick={() => skipBackward(10)}>-10s</button>
+      <button onClick={() => skipBackward(30)}>-30s</button>
+      <button onClick={() => skipForward(30)}>+30s</button>
+      <button onClick={() => skipForward(60)}>+60s</button>
+    </>
+  );
+}
+```
+
+Location: `packages/browser/src/components/PlaybackControls.tsx:97-118`
+
+## Playback State
+
+Monitor playback state with `usePlaybackAnimation`:
+
+```typescript
+interface PlaybackAnimationContextValue {
+  isPlaying: boolean;                          // Whether audio is playing
+  currentTime: number;                         // Current playback time (updated per render)
+  currentTimeRef: RefObject<number>;           // Ref for RAF-based time reads
+  playbackStartTimeRef: RefObject<number>;     // AudioContext time when playback started
+  audioStartPositionRef: RefObject<number>;    // Audio position when playback started
+  getPlaybackTime: () => number;               // Get current time (auto-wraps at loop boundaries)
+}
+```
+
+Location: `packages/browser/src/WaveformPlaylistContext.tsx:72-81`
+
+## Example: Play/Pause Toggle
+
+```typescript
+function ToggleButton() {
+  const { isPlaying } = usePlaybackAnimation();
+  const { play, pause } = usePlaylistControls();
+
+  const toggle = async () => {
+    if (isPlaying) {
+      pause();
+    } else {
+      await play();
+    }
+  };
+
+  return (
+    <button onClick={toggle}>
+      {isPlaying ? 'Pause' : 'Play'}
+    </button>
+  );
+}
+```
+
+## Selection Playback
+
+Play only the selected region:
+
+```typescript
+function PlaySelection() {
+  const { selectionStart, selectionEnd } = usePlaylistState();
+  const { play } = usePlaylistControls();
+
+  const playSelection = async () => {
+    if (selectionEnd > selectionStart) {
+      const duration = selectionEnd - selectionStart;
+      await play(selectionStart, duration);
+    }
+  };
+
+  return (
+    <button onClick={playSelection}>
+      Play Selection
+    </button>
+  );
+}
+```
+
+## Loop Controls
+
+Enable looping for a region:
+
+```typescript
+import { LoopButton, SetLoopRegionButton } from '@waveform-playlist/browser';
+
+function LoopControls() {
+  const { isLoopEnabled, loopStart, loopEnd } = usePlaylistState();
+  const { setLoopEnabled, setLoopRegion, clearLoopRegion } = usePlaylistControls();
+
+  return (
+    <div>
+      <LoopButton />  {/* Toggle loop on/off */}
+      <SetLoopRegionButton />  {/* Set loop from selection */}
+      
+      {/* Manual loop region */}
+      <button onClick={() => setLoopRegion(5.0, 15.0)}>
+        Loop 5s - 15s
+      </button>
+      <button onClick={clearLoopRegion}>
+        Clear Loop
+      </button>
+      
+      <div>Loop: {isLoopEnabled ? 'ON' : 'OFF'}</div>
+      <div>Region: {loopStart.toFixed(2)}s - {loopEnd.toFixed(2)}s</div>
+    </div>
+  );
+}
+```
+
+Location: `packages/browser/src/components/PlaybackControls.tsx:144-203`
+
+## Important Notes
+
+- `play()` returns a Promise that resolves when audio context is ready
+- Use `currentTimeRef.current` for RAF-based animations (avoids state updates)
+- Transport loop handles boundaries automatically when `isLoopEnabled` is true
+- Selection playback disables Transport loop to play once and stop
+
+## Next Steps
+
+- [Keyboard Shortcuts](/guides/keyboard-shortcuts) - Add keyboard controls
+- [Zoom Controls](/guides/zoom-controls) - Control waveform zoom
+- [Export WAV](/guides/export-wav) - Export audio to WAV format

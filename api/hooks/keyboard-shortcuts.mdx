@@ -1,0 +1,366 @@
+---
+title: Keyboard Shortcuts Hooks
+description: React hooks for managing keyboard shortcuts in the playlist
+---
+
+Keyboard shortcuts hooks provide a flexible system for mapping keyboard input to playlist actions. Use `useKeyboardShortcuts` for custom shortcuts and `usePlaybackShortcuts` for common playback controls.
+
+## useKeyboardShortcuts
+
+Generic keyboard shortcut system with modifier key support.
+
+### Import
+
+```typescript
+import { useKeyboardShortcuts, getShortcutLabel } from '@waveform-playlist/browser';
+import type { KeyboardShortcut } from '@waveform-playlist/browser';
+```
+
+### Basic Usage
+
+```typescript
+import { useKeyboardShortcuts } from '@waveform-playlist/browser';
+import { useClipSplitting } from '@waveform-playlist/browser';
+
+function MyPlaylist() {
+  const { splitClipAtPlayhead } = useClipSplitting({ /* ... */ });
+
+  useKeyboardShortcuts({
+    shortcuts: [
+      {
+        key: 's',
+        action: splitClipAtPlayhead,
+        description: 'Split clip at playhead',
+        preventDefault: true,
+      },
+      {
+        key: 'S',
+        shiftKey: true,
+        action: () => console.log('Split at selection'),
+        description: 'Split at selection boundaries',
+      },
+    ],
+  });
+
+  return <div>Press 's' to split clip</div>;
+}
+```
+
+### Modifier Keys
+
+```typescript
+useKeyboardShortcuts({
+  shortcuts: [
+    {
+      key: 'z',
+      ctrlKey: true, // Ctrl+Z (Windows/Linux)
+      metaKey: true, // Cmd+Z (Mac)
+      action: undo,
+      description: 'Undo',
+    },
+    {
+      key: 'z',
+      ctrlKey: true,
+      shiftKey: true,
+      action: redo,
+      description: 'Redo',
+    },
+    {
+      key: 'Delete',
+      action: deleteSelected,
+      description: 'Delete selected',
+    },
+  ],
+});
+```
+
+### Conditional Shortcuts
+
+```typescript
+const [enabled, setEnabled] = useState(true);
+
+useKeyboardShortcuts({
+  shortcuts: [...],
+  enabled, // Disable shortcuts when enabled=false
+});
+```
+
+### Get Shortcut Labels
+
+```typescript
+import { getShortcutLabel } from '@waveform-playlist/browser';
+
+const shortcut = { key: 's', shiftKey: true };
+const label = getShortcutLabel(shortcut); // "Shift+S"
+
+const macShortcut = { key: 'z', metaKey: true };
+const macLabel = getShortcutLabel(macShortcut); // "Cmd+Z" on Mac, "Ctrl+Z" on Windows
+```
+
+### Parameters
+
+<ParamField path="options" type="UseKeyboardShortcutsOptions" required>
+  Shortcut configuration.
+</ParamField>
+
+### UseKeyboardShortcutsOptions
+
+<ParamField path="shortcuts" type="KeyboardShortcut[]" required>
+  Array of keyboard shortcut definitions.
+</ParamField>
+
+<ParamField path="enabled" type="boolean" default={true}>
+  Whether shortcuts are currently enabled. Set to `false` to temporarily disable.
+</ParamField>
+
+### KeyboardShortcut
+
+<ParamField path="key" type="string" required>
+  The key to listen for. Can be a letter (`'s'`), special key (`'Space'`, `'Escape'`, `'Delete'`), or number (`'0'`).
+  
+  See [MDN KeyboardEvent.key](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values) for all values.
+</ParamField>
+
+<ParamField path="ctrlKey" type="boolean">
+  Whether Ctrl key must be pressed. Use with `metaKey` for cross-platform support.
+</ParamField>
+
+<ParamField path="shiftKey" type="boolean">
+  Whether Shift key must be pressed.
+</ParamField>
+
+<ParamField path="metaKey" type="boolean">
+  Whether Meta/Cmd key must be pressed (Mac Command key).
+</ParamField>
+
+<ParamField path="altKey" type="boolean">
+  Whether Alt/Option key must be pressed.
+</ParamField>
+
+<ParamField path="action" type="() => void" required>
+  Function to call when shortcut is triggered.
+</ParamField>
+
+<ParamField path="description" type="string">
+  Human-readable description of the shortcut's action.
+</ParamField>
+
+<ParamField path="preventDefault" type="boolean" default={true}>
+  Whether to call `event.preventDefault()`. Set to `false` to allow default browser behavior.
+</ParamField>
+
+### Input Field Protection
+
+Shortcuts are automatically disabled when focus is in an input field:
+
+```typescript
+// Shortcuts DON'T trigger when typing in these elements:
+// - <input>
+// - <textarea>
+// - contentEditable elements
+```
+
+---
+
+## usePlaybackShortcuts
+
+Pre-configured playback shortcuts with customization support.
+
+### Import
+
+```typescript
+import { usePlaybackShortcuts } from '@waveform-playlist/browser';
+import type { UsePlaybackShortcutsOptions } from '@waveform-playlist/browser';
+```
+
+### Basic Usage
+
+```typescript
+import { usePlaybackShortcuts } from '@waveform-playlist/browser';
+
+function MyPlaylist() {
+  // Enable default playback shortcuts
+  usePlaybackShortcuts();
+
+  return <WaveformPlaylistProvider>...</WaveformPlaylistProvider>;
+}
+```
+
+### Default Shortcuts
+
+The hook provides these shortcuts by default:
+
+- **Space** - Toggle play/pause
+- **Escape** - Stop playback
+- **0** - Rewind to start (seek to time 0)
+
+### Add Custom Shortcuts
+
+```typescript
+const { splitClipAtPlayhead } = useClipSplitting({ /* ... */ });
+
+usePlaybackShortcuts({
+  additionalShortcuts: [
+    {
+      key: 's',
+      action: splitClipAtPlayhead,
+      description: 'Split clip',
+      preventDefault: true,
+    },
+    {
+      key: 'i',
+      action: () => setSelectionStart(currentTime),
+      description: 'Set in point',
+    },
+    {
+      key: 'o',
+      action: () => setSelectionEnd(currentTime),
+      description: 'Set out point',
+    },
+  ],
+});
+```
+
+### Override All Shortcuts
+
+```typescript
+usePlaybackShortcuts({
+  shortcuts: [
+    { key: 'p', action: play, description: 'Play' },
+    { key: 'Home', action: rewindToStart, description: 'Go to start' },
+    // Only these shortcuts will be active
+  ],
+});
+```
+
+### Disable Shortcuts
+
+```typescript
+const [enabled, setEnabled] = useState(true);
+
+usePlaybackShortcuts({ enabled });
+```
+
+### Parameters
+
+<ParamField path="options" type="UsePlaybackShortcutsOptions">
+  Playback shortcuts configuration.
+</ParamField>
+
+### UsePlaybackShortcutsOptions
+
+<ParamField path="enabled" type="boolean" default={true}>
+  Enable the shortcuts.
+</ParamField>
+
+<ParamField path="additionalShortcuts" type="KeyboardShortcut[]">
+  Additional shortcuts to include alongside the default playback shortcuts.
+</ParamField>
+
+<ParamField path="shortcuts" type="KeyboardShortcut[]">
+  Override default shortcuts. If provided, only these shortcuts will be used.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="rewindToStart" type="() => void">
+  Rewind to the beginning (time = 0). If playing, stops and restarts playback from the beginning.
+</ResponseField>
+
+<ResponseField name="togglePlayPause" type="() => void">
+  Toggle between play and pause.
+</ResponseField>
+
+<ResponseField name="stopPlayback" type="() => void">
+  Stop playback and return to start position.
+</ResponseField>
+
+<ResponseField name="shortcuts" type="KeyboardShortcut[]">
+  The list of active keyboard shortcuts (for displaying help UI).
+</ResponseField>
+
+## Usage Patterns
+
+### Shortcut Help Menu
+
+```typescript
+function ShortcutHelp() {
+  const { shortcuts } = usePlaybackShortcuts({
+    additionalShortcuts: [
+      { key: 's', action: split, description: 'Split clip' },
+    ],
+  });
+
+  return (
+    <div>
+      <h2>Keyboard Shortcuts</h2>
+      <ul>
+        {shortcuts.map((shortcut, i) => (
+          <li key={i}>
+            <kbd>{getShortcutLabel(shortcut)}</kbd>
+            {shortcut.description && ` - ${shortcut.description}`}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+### Cross-Platform Shortcuts
+
+```typescript
+// Works on both Mac and Windows
+const isMac = navigator.platform.includes('Mac');
+
+useKeyboardShortcuts({
+  shortcuts: [
+    {
+      key: 'z',
+      ctrlKey: !isMac,  // Ctrl on Windows
+      metaKey: isMac,   // Cmd on Mac
+      action: undo,
+      description: 'Undo',
+    },
+  ],
+});
+```
+
+### Conditional Shortcuts Based on State
+
+```typescript
+const { selectedTrackId } = usePlaylistState();
+
+useKeyboardShortcuts({
+  shortcuts: [
+    {
+      key: 'Delete',
+      action: () => {
+        if (selectedTrackId) {
+          deleteTrack(selectedTrackId);
+        }
+      },
+      description: 'Delete selected track',
+    },
+  ],
+});
+```
+
+## Event Handling
+
+The hook listens for `keydown` events on `window`:
+
+```typescript
+window.addEventListener('keydown', handleKeyDown);
+```
+
+Shortcuts match when:
+1. Key matches (`event.key === shortcut.key`)
+2. All required modifiers match (Ctrl, Shift, Meta, Alt)
+3. Focus is NOT in an input field
+
+## Related
+
+- [Playback Hooks](/api/hooks/playback) - Control playback via shortcuts
+- [useClipSplitting](https://github.com/naomiaro/waveform-playlist/blob/master/packages/browser/src/hooks/useClipSplitting.ts) - Split clips with shortcuts
+- [useAnnotationKeyboardControls](https://github.com/naomiaro/waveform-playlist/blob/master/packages/browser/src/hooks/useAnnotationKeyboardControls.ts) - Annotation keyboard navigation

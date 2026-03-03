@@ -1,0 +1,387 @@
+---
+title: Annotation Controls
+description: UI components for managing and editing annotations including text, boundaries, and playback behavior
+---
+
+## Overview
+
+Annotation control components provide UI for managing annotation editing features. These components integrate with both `WaveformPlaylistProvider` and `MediaElementPlaylistProvider` contexts.
+
+**Package:** `@waveform-playlist/browser` (context-connected) and `@waveform-playlist/annotations` (base components)
+
+**Requires:** 
+- Provider context (`WaveformPlaylistProvider` or `MediaElementPlaylistProvider`)
+- `AnnotationProvider` from `@waveform-playlist/annotations`
+
+---
+
+## ContinuousPlayCheckbox
+
+Checkbox control for enabling/disabling continuous play of annotations.
+
+### Behavior
+
+- **When enabled:** Playback continues from one annotation to the next without stopping
+- **When disabled:** Playback stops at the end of each annotation
+
+### Context-Connected Component
+
+**Package:** `@waveform-playlist/browser`
+
+#### Props
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+#### Usage
+
+```tsx
+import { WaveformPlaylistProvider } from '@waveform-playlist/browser';
+import { AnnotationProvider } from '@waveform-playlist/annotations';
+import { ContinuousPlayCheckbox } from '@waveform-playlist/browser';
+
+function AnnotationControls() {
+  return (
+    <WaveformPlaylistProvider tracks={tracks}>
+      <AnnotationProvider>
+        <ContinuousPlayCheckbox />
+      </AnnotationProvider>
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+### Base Component
+
+**Package:** `@waveform-playlist/annotations`
+
+#### Props
+
+<ParamField path="checked" type="boolean" required>
+  Whether continuous play is enabled.
+</ParamField>
+
+<ParamField path="onChange" type="(checked: boolean) => void" required>
+  Callback when the checkbox state changes.
+</ParamField>
+
+<ParamField path="disabled" type="boolean" default="false">
+  Whether the checkbox is disabled.
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name.
+</ParamField>
+
+#### Usage
+
+```tsx
+import { ContinuousPlayCheckbox } from '@waveform-playlist/annotations';
+import { useState } from 'react';
+
+function CustomControls() {
+  const [continuous, setContinuous] = useState(false);
+  
+  return (
+    <ContinuousPlayCheckbox 
+      checked={continuous}
+      onChange={setContinuous}
+    />
+  );
+}
+```
+
+---
+
+## LinkEndpointsCheckbox
+
+Checkbox control for enabling/disabling linked endpoints between annotations.
+
+### Behavior
+
+- **When enabled:** The end time of one annotation is automatically linked to the start time of the next annotation. Dragging one boundary moves the adjacent annotation's boundary.
+- **When disabled:** Annotations can be edited independently with gaps or overlaps.
+
+### Context-Connected Component
+
+**Package:** `@waveform-playlist/browser`
+
+#### Props
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+#### Usage
+
+```tsx
+import { LinkEndpointsCheckbox } from '@waveform-playlist/browser';
+import { AnnotationProvider } from '@waveform-playlist/annotations';
+
+<AnnotationProvider>
+  <LinkEndpointsCheckbox />
+</AnnotationProvider>
+```
+
+### Base Component
+
+**Package:** `@waveform-playlist/annotations`
+
+#### Props
+
+<ParamField path="checked" type="boolean" required>
+  Whether endpoints are linked.
+</ParamField>
+
+<ParamField path="onChange" type="(checked: boolean) => void" required>
+  Callback when the checkbox state changes.
+</ParamField>
+
+<ParamField path="disabled" type="boolean" default="false">
+  Whether the checkbox is disabled.
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name.
+</ParamField>
+
+---
+
+## EditableCheckbox
+
+Checkbox control for enabling/disabling annotation editing.
+
+### Behavior
+
+- **When enabled:** Annotation boundaries can be dragged, text can be edited, and action controls are shown
+- **When disabled:** Annotations are read-only and can only be played
+
+### Context-Connected Component
+
+**Package:** `@waveform-playlist/browser`
+
+#### Props
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+#### Usage
+
+```tsx
+import { EditableCheckbox } from '@waveform-playlist/browser';
+import { AnnotationProvider } from '@waveform-playlist/annotations';
+
+<AnnotationProvider>
+  <EditableCheckbox />
+</AnnotationProvider>
+```
+
+### Base Component
+
+**Package:** `@waveform-playlist/annotations`
+
+#### Props
+
+<ParamField path="checked" type="boolean" required>
+  Whether annotations are editable.
+</ParamField>
+
+<ParamField path="onChange" type="(enabled: boolean) => void" required>
+  Callback when the checkbox state changes.
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name.
+</ParamField>
+
+---
+
+## DownloadAnnotationsButton
+
+Button component for downloading annotations as JSON file.
+
+### Behavior
+
+- Serializes annotations to Aeneas JSON format
+- Triggers browser download with customizable filename
+- Disabled when there are no annotations
+- Shows contextual title/tooltip text
+
+### Context-Connected Component
+
+**Package:** `@waveform-playlist/browser`
+
+#### Props
+
+<ParamField path="filename" type="string" default="annotations.json">
+  Name of the downloaded file.
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+#### Usage
+
+```tsx
+import { DownloadAnnotationsButton } from '@waveform-playlist/browser';
+import { AnnotationProvider } from '@waveform-playlist/annotations';
+
+<AnnotationProvider>
+  <DownloadAnnotationsButton filename="my-annotations.json" />
+</AnnotationProvider>
+```
+
+### Base Component
+
+**Package:** `@waveform-playlist/annotations`
+
+#### Props
+
+<ParamField path="annotations" type="AnnotationData[]" required>
+  Array of annotations to download.
+</ParamField>
+
+<ParamField path="filename" type="string" default="annotations.json">
+  Name of the downloaded file.
+</ParamField>
+
+<ParamField path="disabled" type="boolean" default="false">
+  Whether the button is disabled.
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name.
+</ParamField>
+
+<ParamField path="children" type="React.ReactNode" default="Download JSON">
+  Button text/content.
+</ParamField>
+
+---
+
+## PlaylistAnnotationList
+
+Standalone annotation text list component for displaying and editing annotation text.
+
+**Package:** `@waveform-playlist/browser`
+
+**Requires:** 
+- `WaveformPlaylistProvider` context
+- `AnnotationProvider` from `@waveform-playlist/annotations`
+
+### Props
+
+<ParamField path="height" type="number">
+  Height in pixels for the annotation text list.
+</ParamField>
+
+<ParamField path="renderAnnotationItem" type="(props: RenderAnnotationItemProps) => React.ReactNode">
+  Custom render function for annotation items in the text list. When provided, completely replaces the default annotation item rendering.
+</ParamField>
+
+<ParamField path="onAnnotationUpdate" type="(annotations: AnnotationData[]) => void">
+  Callback when annotations are updated (e.g., text edited). Called with the full updated annotations array.
+</ParamField>
+
+<ParamField path="controls" type="AnnotationAction[]">
+  Action controls to show on each annotation item (e.g., delete, split). Only rendered when annotations are editable.
+</ParamField>
+
+<ParamField path="annotationListConfig" type="AnnotationActionOptions">
+  Override annotation list config. Falls back to context values `{ linkEndpoints, continuousPlay }` if not provided.
+</ParamField>
+
+<ParamField path="scrollActivePosition" type="'center' | 'start' | 'end' | 'nearest'" default="center">
+  Where to position the active annotation when auto-scrolling.
+</ParamField>
+
+<ParamField path="scrollActiveContainer" type="'nearest' | 'all'" default="nearest">
+  Which scrollable containers to scroll: 'nearest' (only the annotation list) or 'all' (including viewport).
+</ParamField>
+
+### Usage
+
+```tsx
+import { 
+  WaveformPlaylistProvider,
+  PlaylistVisualization,
+  PlaylistAnnotationList 
+} from '@waveform-playlist/browser';
+import { AnnotationProvider } from '@waveform-playlist/annotations';
+
+function CustomAnnotationEditor() {
+  const [annotations, setAnnotations] = useState([]);
+  
+  return (
+    <WaveformPlaylistProvider 
+      tracks={tracks}
+      annotationList={{ annotations, editable: true }}
+      onAnnotationsChange={setAnnotations}
+    >
+      <AnnotationProvider>
+        <PlaylistVisualization />
+        <PlaylistAnnotationList 
+          height={200}
+          onAnnotationUpdate={setAnnotations}
+        />
+      </AnnotationProvider>
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+---
+
+## Complete Annotation Controls Example
+
+```tsx
+import { 
+  WaveformPlaylistProvider,
+  Waveform,
+  ContinuousPlayCheckbox,
+  LinkEndpointsCheckbox,
+  EditableCheckbox,
+  DownloadAnnotationsButton
+} from '@waveform-playlist/browser';
+import { AnnotationProvider } from '@waveform-playlist/annotations';
+import { useState } from 'react';
+
+function AnnotationEditor() {
+  const [annotations, setAnnotations] = useState([
+    { id: '1', start: 0, end: 2, text: 'First annotation' },
+    { id: '2', start: 2, end: 4, text: 'Second annotation' },
+  ]);
+  
+  return (
+    <WaveformPlaylistProvider 
+      tracks={tracks}
+      annotationList={{ annotations, editable: true }}
+      onAnnotationsChange={setAnnotations}
+    >
+      <AnnotationProvider>
+        <div className="annotation-controls">
+          <EditableCheckbox />
+          <LinkEndpointsCheckbox />
+          <ContinuousPlayCheckbox />
+          <DownloadAnnotationsButton filename="my-annotations.json" />
+        </div>
+        
+        <Waveform annotationTextHeight={200} />
+      </AnnotationProvider>
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+### Important Notes
+
+<Warning>
+  When using `annotationList` on `WaveformPlaylistProvider`, always pair it with `onAnnotationsChange`. Without the callback, annotation edits won't persist and a console warning will be displayed.
+</Warning>
+
+<Info>
+  The context-connected components (from `@waveform-playlist/browser`) throw an error if used without `<AnnotationProvider>`. This follows the [Kent C. Dodds context pattern](https://kentcdodds.com/blog/how-to-use-react-context-effectively) to fail fast with clear error messages.
+</Info>

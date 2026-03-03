@@ -1,0 +1,412 @@
+---
+title: 'AnnotationProvider'
+description: 'Optional provider that supplies annotation UI components and parsers for waveform-playlist'
+---
+
+## Overview
+
+The `AnnotationProvider` is an optional context provider from the `@waveform-playlist/annotations` package that supplies annotation UI components, parsers, and controls to the browser package.
+
+**This provider enables:**
+- Visual annotation components (boxes, text lists)
+- Aeneas format parsing and serialization
+- Annotation control checkboxes (editable, continuous play, link endpoints)
+- Download annotations button
+
+**The browser package works without this provider**, but annotation features will be unavailable.
+
+## Installation
+
+```bash
+npm install @waveform-playlist/annotations
+```
+
+## Import
+
+```tsx
+import { AnnotationProvider } from '@waveform-playlist/annotations';
+```
+
+## Usage
+
+Wrap your application with `AnnotationProvider` to enable annotation features:
+
+```tsx
+import { AnnotationProvider } from '@waveform-playlist/annotations';
+import { WaveformPlaylistProvider } from '@waveform-playlist/browser';
+
+function App() {
+  return (
+    <AnnotationProvider>
+      <WaveformPlaylistProvider tracks={tracks}>
+        {/* Your components can now use annotation features */}
+      </WaveformPlaylistProvider>
+    </AnnotationProvider>
+  );
+}
+```
+
+## Integration Pattern
+
+The `@waveform-playlist/annotations` package follows an **integration context pattern**:
+
+1. The `@waveform-playlist/browser` package defines what it needs via the `AnnotationIntegration` interface
+2. The `@waveform-playlist/annotations` package provides the implementation via `AnnotationProvider`
+3. Browser components use `useAnnotationIntegration()` to access features
+4. If `AnnotationProvider` is not present, components gracefully return `null` or throw helpful errors
+
+### Why This Pattern?
+
+- **Optional dependency**: Annotations are opt-in, reducing bundle size when not needed
+- **Clear separation**: Browser package handles playback/editing, annotations package handles annotation UI
+- **Fail-fast errors**: Missing provider throws clear error with installation instructions
+
+## Provided Components
+
+When you wrap your app with `AnnotationProvider`, these components become available:
+
+### AnnotationText
+
+Text list view of annotations with editing capabilities.
+
+```tsx
+import { AnnotationText } from '@waveform-playlist/annotations';
+
+<AnnotationText
+  annotations={annotations}
+  activeAnnotationId={activeId}
+  editable
+  shouldScrollToActive
+  onAnnotationUpdate={setAnnotations}
+/>
+```
+
+### AnnotationBox
+
+Visual box overlaid on waveform for a single annotation segment.
+
+```tsx
+import { AnnotationBox } from '@waveform-playlist/annotations';
+
+<AnnotationBox
+  annotationId="seg-1"
+  annotationIndex={0}
+  startPosition={100}  // pixels
+  endPosition={250}    // pixels
+  label="First segment"
+  isActive
+  editable
+  onClick={() => handleClick()}
+/>
+```
+
+### AnnotationBoxesWrapper
+
+Container for rendering multiple annotation boxes.
+
+```tsx
+import { AnnotationBoxesWrapper } from '@waveform-playlist/annotations';
+
+<AnnotationBoxesWrapper height={100} width={1000}>
+  {annotations.map((ann, i) => (
+    <AnnotationBox key={ann.id} {...ann} />
+  ))}
+</AnnotationBoxesWrapper>
+```
+
+### Control Components
+
+UI controls for annotation features:
+
+```tsx
+import {
+  ContinuousPlayCheckbox,
+  LinkEndpointsCheckbox,
+  EditableCheckbox,
+  DownloadAnnotationsButton
+} from '@waveform-playlist/annotations';
+
+<ContinuousPlayCheckbox 
+  checked={continuousPlay} 
+  onChange={setContinuousPlay} 
+/>
+
+<LinkEndpointsCheckbox 
+  checked={linkEndpoints} 
+  onChange={setLinkEndpoints} 
+/>
+
+<EditableCheckbox 
+  checked={editable} 
+  onChange={setEditable} 
+/>
+
+<DownloadAnnotationsButton 
+  annotations={annotations}
+  filename="transcription.json"
+/>
+```
+
+## Provided Parsers
+
+The provider includes parsers for Aeneas annotation format.
+
+### parseAeneas
+
+Parse raw Aeneas annotation data into `AnnotationData` format.
+
+```tsx
+import { parseAeneas } from '@waveform-playlist/annotations';
+
+const annotation = parseAeneas({
+  begin: "0.000",
+  end: "2.500",
+  id: "segment-1",
+  lines: ["First line of text", "Second line"]
+});
+
+// Result:
+// {
+//   id: "segment-1",
+//   start: 0.0,      // numeric
+//   end: 2.5,        // numeric
+//   lines: ["First line of text", "Second line"]
+// }
+```
+
+**Important:** Always parse annotations before passing to `WaveformPlaylistProvider`. The provider expects numeric `start` and `end` values.
+
+```tsx
+const rawAnnotations = [
+  { begin: "0.000", end: "2.500", id: "1", lines: ["First"] },
+  { begin: "2.500", end: "5.000", id: "2", lines: ["Second"] }
+];
+
+// Parse before passing to provider
+const annotations = rawAnnotations.map(parseAeneas);
+
+<WaveformPlaylistProvider
+  tracks={tracks}
+  annotationList={{ annotations }}  // ✓ Numeric start/end
+>
+```
+
+### serializeAeneas
+
+Serialize `AnnotationData` back to Aeneas format for export.
+
+```tsx
+import { serializeAeneas } from '@waveform-playlist/annotations';
+
+const annotation = {
+  id: "segment-1",
+  start: 0.0,
+  end: 2.5,
+  lines: ["First line"]
+};
+
+const aeneas = serializeAeneas(annotation);
+
+// Result:
+// {
+//   begin: "0.000",
+//   end: "2.500",
+//   id: "segment-1",
+//   lines: ["First line"]
+// }
+```
+
+## Using the Integration Hook
+
+Access annotation features from any component:
+
+```tsx
+import { useAnnotationIntegration } from '@waveform-playlist/browser';
+
+function MyComponent() {
+  const {
+    parseAeneas,
+    serializeAeneas,
+    AnnotationText,
+    AnnotationBox,
+    // ... other components
+  } = useAnnotationIntegration();
+  
+  // Use annotation features
+}
+```
+
+**This hook throws if `AnnotationProvider` is not present:**
+
+```
+Error: useAnnotationIntegration must be used within <AnnotationProvider>.
+Install @waveform-playlist/annotations and wrap your app with <AnnotationProvider>.
+See: https://waveform-playlist.naomiaro.com/docs/guides/annotations
+```
+
+This follows the [Kent C. Dodds context pattern](https://kentcdodds.com/blog/how-to-use-react-context-effectively) - fail fast with clear error.
+
+## Complete Example
+
+```tsx
+import { useState, useEffect } from 'react';
+import { 
+  AnnotationProvider,
+  parseAeneas,
+  serializeAeneas,
+  DownloadAnnotationsButton
+} from '@waveform-playlist/annotations';
+import { 
+  WaveformPlaylistProvider,
+  usePlaylistState,
+  usePlaylistControls
+} from '@waveform-playlist/browser';
+
+function AnnotationControls() {
+  const { 
+    continuousPlay, 
+    linkEndpoints, 
+    annotationsEditable,
+    annotations 
+  } = usePlaylistState();
+  
+  const { 
+    setContinuousPlay, 
+    setLinkEndpoints, 
+    setAnnotationsEditable 
+  } = usePlaylistControls();
+  
+  return (
+    <div>
+      <ContinuousPlayCheckbox 
+        checked={continuousPlay}
+        onChange={setContinuousPlay}
+      />
+      <LinkEndpointsCheckbox 
+        checked={linkEndpoints}
+        onChange={setLinkEndpoints}
+      />
+      <EditableCheckbox 
+        checked={annotationsEditable}
+        onChange={setAnnotationsEditable}
+      />
+      <DownloadAnnotationsButton 
+        annotations={annotations}
+        filename="my-annotations.json"
+      />
+    </div>
+  );
+}
+
+function App() {
+  const [tracks, setTracks] = useState([...]);
+  const [annotations, setAnnotations] = useState([]);
+  
+  // Load and parse annotations
+  useEffect(() => {
+    fetch('/api/annotations')
+      .then(res => res.json())
+      .then(raw => {
+        const parsed = raw.map(parseAeneas);
+        setAnnotations(parsed);
+      });
+  }, []);
+  
+  // Save annotations when changed
+  const handleAnnotationsChange = (updated) => {
+    setAnnotations(updated);
+    
+    // Serialize and save to server
+    const serialized = updated.map(serializeAeneas);
+    fetch('/api/annotations', {
+      method: 'POST',
+      body: JSON.stringify(serialized)
+    });
+  };
+  
+  return (
+    <AnnotationProvider>
+      <WaveformPlaylistProvider
+        tracks={tracks}
+        onTracksChange={setTracks}
+        annotationList={{
+          annotations,
+          editable: true,
+          isContinuousPlay: false,
+          linkEndpoints: true
+        }}
+        onAnnotationsChange={handleAnnotationsChange}
+      >
+        <AnnotationControls />
+        {/* Waveform visualization */}
+      </WaveformPlaylistProvider>
+    </AnnotationProvider>
+  );
+}
+```
+
+## Critical: Use onAnnotationsChange
+
+When using `annotationList` with editable annotations, **always provide `onAnnotationsChange`**:
+
+```tsx
+// ✓ Correct - edits persist
+<WaveformPlaylistProvider
+  annotationList={{ annotations, editable: true }}
+  onAnnotationsChange={setAnnotations}  // Required!
+>
+
+// ✗ Wrong - edits don't persist, console warning fires
+<WaveformPlaylistProvider
+  annotationList={{ annotations, editable: true }}
+  // Missing onAnnotationsChange!
+>
+```
+
+Without the callback, you'll see:
+
+```
+warning: setAnnotations was called but no onAnnotationsChange callback is provided.
+Annotation edits will not persist. Pass onAnnotationsChange to WaveformPlaylistProvider.
+```
+
+## Integration Context Details
+
+The `AnnotationProvider` supplies this integration object:
+
+```typescript
+interface AnnotationIntegration {
+  // Parsers
+  parseAeneas: (data: unknown) => AnnotationData;
+  serializeAeneas: (annotation: AnnotationData) => unknown;
+  
+  // Visualization components
+  AnnotationText: React.ComponentType<AnnotationTextIntegrationProps>;
+  AnnotationBox: React.ComponentType<AnnotationBoxIntegrationProps>;
+  AnnotationBoxesWrapper: React.ComponentType<AnnotationBoxesWrapperIntegrationProps>;
+  
+  // Control components
+  ContinuousPlayCheckbox: React.ComponentType<CheckboxProps>;
+  LinkEndpointsCheckbox: React.ComponentType<CheckboxProps>;
+  EditableCheckbox: React.ComponentType<CheckboxProps>;
+  DownloadAnnotationsButton: React.ComponentType<DownloadButtonProps>;
+}
+```
+
+This interface is defined in `@waveform-playlist/browser/src/AnnotationIntegrationContext.tsx`.
+
+## Without AnnotationProvider
+
+If you don't install `@waveform-playlist/annotations`, the browser package still works:
+
+- `annotationList` prop is ignored (no visual annotations)
+- `useAnnotationIntegration()` throws with helpful error
+- Internal components that check for the provider with `useContext()` return `null`
+
+This keeps the browser package functional without requiring the annotations dependency.
+
+## Related
+
+- [WaveformPlaylistProvider](/api/providers/waveform-playlist-provider) - Main playlist provider
+- [Annotations Guide](/guides/annotations) - Working with annotations
+- [AnnotationData type](/api/types/annotations) - Annotation data structure

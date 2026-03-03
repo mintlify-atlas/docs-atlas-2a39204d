@@ -1,0 +1,331 @@
+---
+title: '@waveform-playlist/browser'
+description: 'Complete browser bundle with React components and hooks'
+---
+
+# @waveform-playlist/browser
+
+The browser package is the main entry point for using Waveform Playlist in web applications. It provides a complete React-based solution with components, hooks, and effects for building multitrack audio editors.
+
+## Installation
+
+```bash
+npm install @waveform-playlist/browser react react-dom styled-components
+```
+
+### Peer Dependencies
+
+<ParamField path="react" type="string" required>
+  React 18.2.0+ or 19.0.0+
+</ParamField>
+
+<ParamField path="react-dom" type="string" required>
+  React DOM 18.2.0+ or 19.0.0+
+</ParamField>
+
+<ParamField path="styled-components" type="string" required>
+  Styled Components 6.0.0+
+</ParamField>
+
+<ParamField path="@dnd-kit/core" type="string" required>
+  DnD Kit 6.0.0+ for drag-and-drop functionality
+</ParamField>
+
+<ParamField path="@dnd-kit/modifiers" type="string" required>
+  DnD Kit modifiers 9.0.0+
+</ParamField>
+
+<ParamField path="tone" type="string" required>
+  Tone.js 15.0.0+ for audio playback
+</ParamField>
+
+### Optional Peer Dependencies
+
+<ParamField path="@waveform-playlist/annotations" type="string">
+  Add annotation support (optional)
+</ParamField>
+
+<ParamField path="@waveform-playlist/recording" type="string">
+  Add recording capabilities (optional)
+</ParamField>
+
+## Package Contents
+
+This package bundles and re-exports functionality from multiple packages:
+
+- `@waveform-playlist/core` - Core types and utilities
+- `@waveform-playlist/engine` - Audio playback engine
+- `@waveform-playlist/loaders` - Audio file loaders
+- `@waveform-playlist/media-element-playout` - HTML5 Audio playback
+- `@waveform-playlist/playout` - Tone.js playback adapter
+- `@waveform-playlist/ui-components` - Base React components
+
+## Main Exports
+
+### Providers
+
+<ParamField path="WaveformPlaylistProvider" type="component">
+  Main provider for Tone.js-based multitrack playback with full editing capabilities
+</ParamField>
+
+<ParamField path="MediaElementPlaylistProvider" type="component">
+  Alternative provider for single-track playback using HTML5 Audio with playback rate control
+</ParamField>
+
+<ParamField path="AnnotationIntegrationProvider" type="component">
+  Provider for optional annotation support
+</ParamField>
+
+<ParamField path="SpectrogramIntegrationProvider" type="component">
+  Provider for optional spectrogram visualization
+</ParamField>
+
+### React Hooks
+
+#### Playlist State & Controls
+
+| Hook | Description |
+|------|-------------|
+| `usePlaybackAnimation()` | Access current playback time with 60fps updates |
+| `usePlaylistState()` | Access playback state (isPlaying, duration, etc.) |
+| `usePlaylistControls()` | Control functions (play, pause, stop, seek, etc.) |
+| `usePlaylistData()` | Track data and loading state |
+| `useMediaElementAnimation()` | Playback animation for MediaElement provider |
+| `useMediaElementState()` | State for MediaElement provider |
+| `useMediaElementControls()` | Controls for MediaElement provider |
+| `useMediaElementData()` | Data for MediaElement provider |
+
+#### Audio Loading & Management
+
+| Hook | Description |
+|------|-------------|
+| `useAudioTracks()` | Load audio files from URLs with AbortController cleanup |
+| `useDynamicTracks()` | Runtime track addition with placeholder-then-replace pattern |
+
+#### User Interaction
+
+| Hook | Description |
+|------|-------------|
+| `useClipDragHandlers()` | Drag-to-move and boundary trimming for clips |
+| `useAnnotationDragHandlers()` | Drag handlers for annotations |
+| `useAnnotationKeyboardControls()` | Annotation navigation, editing, and auto-scroll |
+| `useDragSensors()` | Drag sensors configuration for @dnd-kit |
+| `useClipSplitting()` | Split clips at playhead position |
+| `useKeyboardShortcuts()` | Flexible keyboard shortcut system |
+| `usePlaybackShortcuts()` | Default playback shortcuts (Space, 0, Arrow keys) |
+
+#### Audio Effects
+
+| Hook | Description |
+|------|-------------|
+| `useDynamicEffects()` | Master effects chain with 20 Tone.js effects |
+| `useTrackDynamicEffects()` | Per-track effects management |
+
+#### State Management
+
+| Hook | Description |
+|------|-------------|
+| `useSelectionState()` | Selection state (start/end) with engine delegation |
+| `useLoopState()` | Loop state (enabled, start, end) with engine delegation |
+| `useSelectedTrack()` | Selected track ID with engine delegation |
+| `useZoomControls()` | Zoom state (samplesPerPixel, canZoomIn/Out) |
+| `useMasterVolume()` | Master volume control (0.0-1.0) |
+| `useMasterAnalyser()` | Real-time audio analysis |
+| `useTimeFormat()` | Time format state (seconds, hh:mm:ss, samples) |
+| `useExportWav()` | Export mixed audio as WAV file |
+
+### UI Components
+
+#### Playback Controls
+
+| Component | Description |
+|-----------|-------------|
+| `PlayButton` | Play button |
+| `PauseButton` | Pause button |
+| `StopButton` | Stop button |
+| `RewindButton` | Skip backward |
+| `FastForwardButton` | Skip forward |
+| `SkipBackwardButton` | Skip backward by interval |
+| `SkipForwardButton` | Skip forward by interval |
+
+#### Editing Controls
+
+| Component | Description |
+|-----------|-------------|
+| `LoopButton` | Toggle loop mode |
+| `SetLoopRegionButton` | Set loop region from selection |
+| `ZoomInButton` | Zoom in |
+| `ZoomOutButton` | Zoom out |
+| `ExportWavButton` | Export mixed audio as WAV |
+
+#### Display Components
+
+| Component | Description |
+|-----------|-------------|
+| `AudioPosition` | Current playback time display |
+| `SelectionTimeInputs` | Editable selection start/end inputs |
+| `MasterVolumeControl` | Master volume slider |
+| `TimeFormatSelect` | Time format selector dropdown |
+
+#### Settings
+
+| Component | Description |
+|-----------|-------------|
+| `AutomaticScrollCheckbox` | Toggle auto-scroll during playback |
+| `ContinuousPlayCheckbox` | Toggle continuous play for annotations |
+| `LinkEndpointsCheckbox` | Link annotation endpoints |
+| `EditableCheckbox` | Toggle annotation editing |
+| `DownloadAnnotationsButton` | Download annotations as JSON/Aeneas |
+
+#### Visualization
+
+| Component | Description |
+|-----------|-------------|
+| `Waveform` | Single track waveform visualization |
+| `MediaElementWaveform` | Waveform for MediaElement provider |
+| `MediaElementPlaylist` | Complete playlist UI for MediaElement |
+| `MediaElementAnnotationList` | Annotations for MediaElement |
+| `PlaylistVisualization` | Complete multitrack playlist UI |
+| `PlaylistAnnotationList` | Annotations for multitrack playlist |
+
+### Audio Effects
+
+#### Effect Definitions
+
+<ParamField path="effectDefinitions" type="array">
+  Array of 20 Tone.js effect definitions organized by category
+</ParamField>
+
+<ParamField path="effectCategories" type="array">
+  Categories: Reverb, Delay, Modulation, Filter, Distortion, Dynamics, Spatial
+</ParamField>
+
+<ParamField path="getEffectDefinition(id)" type="function">
+  Get effect definition by ID
+</ParamField>
+
+<ParamField path="getEffectsByCategory()" type="function">
+  Get effects grouped by category
+</ParamField>
+
+#### Effect Factory
+
+<ParamField path="createEffectInstance(definition)" type="function">
+  Create Tone.js effect instance from definition
+</ParamField>
+
+<ParamField path="createEffectChain(effects)" type="function">
+  Create series-chained effect graph
+</ParamField>
+
+### Utilities
+
+#### Waveform Data Loading
+
+| Function | Description |
+|----------|-------------|
+| `loadWaveformData(url)` | Load pre-computed peaks from waveform-data.js format |
+| `waveformDataToPeaks(waveformData)` | Convert WaveformData to peaks array |
+| `loadPeaksFromWaveformData(waveformData, options)` | Extract peaks for specific zoom level |
+| `getWaveformDataMetadata(waveformData)` | Get sample rate, duration, channels |
+
+### Re-exported Types
+
+For convenience, this package re-exports common types:
+
+```typescript
+// From @waveform-playlist/core
+export type { ClipTrack, AudioClip, Fade, AnnotationData }
+
+// From @waveform-playlist/ui-components  
+export type { TimeFormat }
+
+// From @waveform-playlist/playout
+export type { EffectsFunction, TrackEffectsFunction }
+
+// From Tone.js
+export { Tone }
+```
+
+## Usage Example
+
+```tsx
+import {
+  WaveformPlaylistProvider,
+  PlaylistVisualization,
+  PlayButton,
+  PauseButton,
+  ZoomInButton,
+  ZoomOutButton,
+  usePlaylistState,
+} from '@waveform-playlist/browser';
+
+function App() {
+  const [tracks, setTracks] = useState([
+    {
+      id: '1',
+      name: 'Track 1',
+      clips: [
+        {
+          id: 'clip1',
+          src: '/audio/track1.mp3',
+          startSample: 0,
+          durationSamples: 44100 * 30, // 30 seconds at 44.1kHz
+          offsetSamples: 0,
+          sampleRate: 44100,
+          sourceDurationSamples: 44100 * 30,
+          gain: 1.0,
+        },
+      ],
+      volume: 0.8,
+      pan: 0,
+      muted: false,
+      soloed: false,
+    },
+  ]);
+
+  return (
+    <WaveformPlaylistProvider tracks={tracks} onTracksChange={setTracks}>
+      <div>
+        <PlayButton />
+        <PauseButton />
+        <ZoomInButton />
+        <ZoomOutButton />
+      </div>
+      <PlaylistVisualization />
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+## Key Architectural Patterns
+
+### Context-Based Architecture
+
+The browser package uses React Context to manage state and provide hooks. All audio state lives in the provider, and hooks access it via context.
+
+### Engine State Subscription
+
+Engine-owned state (selection, loop, zoom, volume) uses a subscription pattern:
+- Engine owns state and emits `statechange` events
+- Hooks mirror state into React via `onEngineState()` callbacks
+- Changes are seeded back to engine when it's rebuilt
+
+### Smooth Playback Animation
+
+Playback uses `requestAnimationFrame` with direct DOM manipulation to achieve 60fps updates without React re-renders:
+- `getPlaybackTime()` reads from `Transport.seconds` for audio sync
+- No `setState` in animation loop
+- Perfect sync with Tone.js Transport loop boundaries
+
+### Web Worker Peak Generation
+
+`WaveformData` is generated in a web worker at load time, then `resample()` provides near-instant zoom changes. This keeps the UI responsive even with large audio files.
+
+## Related Packages
+
+- [Core](/api/packages/core) - Core types and utilities
+- [UI Components](/api/packages/ui-components) - Base React components
+- [Playout](/api/packages/playout) - Tone.js playback engine
+- [Annotations](/api/packages/annotations) - Annotation support (optional)
+- [Recording](/api/packages/recording) - Recording capabilities (optional)

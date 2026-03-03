@@ -1,0 +1,522 @@
+---
+title: Theming
+description: Customize colors, fonts, and visual styles with the theme system
+---
+
+# Theming
+
+Waveform Playlist includes a comprehensive theming system built on styled-components, allowing full visual customization.
+
+## Theme Architecture
+
+The theme system follows a **single source of truth** pattern:
+
+1. `WaveformPlaylistTheme` interface defines all theme properties
+2. `defaultTheme` and `darkTheme` provide built-in presets
+3. Components access theme via styled-components `ThemeProvider`
+4. No color props on components—all styling through theme
+
+## WaveformPlaylistTheme Interface
+
+Here's the complete theme interface from `packages/ui-components/src/wfpl-theme.ts`:
+
+```typescript
+interface WaveformPlaylistTheme {
+  // Waveform drawing mode
+  waveformDrawMode?: 'inverted' | 'normal';
+
+  // Waveform colors (can be solid colors or gradients)
+  waveOutlineColor: WaveformColor;
+  waveFillColor: WaveformColor;
+  waveProgressColor: string;
+
+  // Selected track colors
+  selectedWaveOutlineColor: WaveformColor;
+  selectedWaveFillColor: WaveformColor;
+  selectedTrackControlsBackground: string;
+
+  // Timescale colors
+  timeColor: string;
+  timescaleBackgroundColor: string;
+
+  // Playback UI colors
+  playheadColor: string;
+  selectionColor: string;
+
+  // Loop region colors (Audacity-style)
+  loopRegionColor: string;
+  loopMarkerColor: string;
+
+  // Clip header colors
+  clipHeaderBackgroundColor: string;
+  clipHeaderBorderColor: string;
+  clipHeaderTextColor: string;
+  clipHeaderFontFamily: string;
+  selectedClipHeaderBackgroundColor: string;
+
+  // Fade overlay
+  fadeOverlayColor: string;
+
+  // UI component colors
+  backgroundColor: string;
+  surfaceColor: string;
+  borderColor: string;
+  textColor: string;
+  textColorMuted: string;
+
+  // Interactive elements
+  inputBackground: string;
+  inputBorder: string;
+  inputText: string;
+  inputPlaceholder: string;
+  inputFocusBorder: string;
+
+  // Buttons
+  buttonBackground: string;
+  buttonText: string;
+  buttonBorder: string;
+  buttonHoverBackground: string;
+
+  // Sliders
+  sliderTrackColor: string;
+  sliderThumbColor: string;
+
+  // Annotations
+  annotationBoxBackground: string;
+  annotationBoxActiveBackground: string;
+  annotationBoxHoverBackground: string;
+  annotationBoxBorder: string;
+  annotationBoxActiveBorder: string;
+  annotationLabelColor: string;
+  annotationResizeHandleColor: string;
+  annotationResizeHandleActiveColor: string;
+  annotationTextItemHoverBackground: string;
+
+  // Spacing and sizing
+  borderRadius: string;
+  fontFamily: string;
+  fontSize: string;
+  fontSizeSmall: string;
+}
+```
+
+## Built-in Themes
+
+### Default Theme (Light Mode)
+
+```typescript
+import { defaultTheme } from '@waveform-playlist/ui-components';
+
+const theme = {
+  waveformDrawMode: 'inverted',
+  waveOutlineColor: '#ffffff',
+  waveFillColor: '#1a7f8e',        // Teal
+  waveProgressColor: 'rgba(0, 0, 0, 0.10)',
+  playheadColor: '#f00',           // Red
+  selectionColor: 'rgba(255, 105, 180, 0.7)',  // Hot pink
+  // ... more properties
+};
+```
+
+### Dark Theme
+
+<Tip>
+The dark theme uses the **Ampelmännchen Traffic Light** color palette inspired by the iconic DDR pedestrian signal.
+</Tip>
+
+```typescript
+import { darkTheme } from '@waveform-playlist/ui-components';
+
+const theme = {
+  waveformDrawMode: 'inverted',
+  waveOutlineColor: '#c49a6c',     // Warm amber
+  waveFillColor: '#1a1612',        // Dark warm brown
+  playheadColor: '#3a8838',        // Ampelmännchen green
+  selectionColor: 'rgba(60, 140, 58, 0.6)',  // Green (visible on dark)
+  buttonBackground: '#63C75F',     // Official Ampelmännchen brand green
+  buttonText: '#0a0a0f',           // Black text
+  // ... more properties
+};
+```
+
+**Dark Theme Color Palette:**
+
+- 🟢 **Green** (`#63C75F`) - Official Ampelmännchen brand green for buttons/links
+- 🟡 **Amber** (`#c49a6c`) - Warm golden waveform bars and body text
+- 🔴 **Red** (`#d08070`) - Headings and accent elements
+
+## Using Themes
+
+### Basic Usage
+
+Pass a theme to the provider:
+
+```typescript
+import {
+  WaveformPlaylistProvider,
+  Waveform,
+} from '@waveform-playlist/browser';
+import { darkTheme } from '@waveform-playlist/ui-components';
+
+function App() {
+  return (
+    <WaveformPlaylistProvider
+      tracks={tracks}
+      theme={darkTheme}  // Apply dark theme
+    >
+      <Waveform />
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+### Custom Theme
+
+Extend or override the default theme:
+
+```typescript
+import { defaultTheme } from '@waveform-playlist/ui-components';
+
+const customTheme = {
+  ...defaultTheme,
+  waveOutlineColor: '#000000',
+  waveFillColor: '#3498db',
+  playheadColor: '#e74c3c',
+  selectionColor: 'rgba(46, 204, 113, 0.5)',
+};
+
+<WaveformPlaylistProvider theme={customTheme} tracks={tracks}>
+  <Waveform />
+</WaveformPlaylistProvider>
+```
+
+<Info>
+You only need to specify properties you want to override. Unspecified properties fall back to `defaultTheme`.
+</Info>
+
+### Partial Theme
+
+The provider accepts `Partial<WaveformPlaylistTheme>`:
+
+```typescript
+<WaveformPlaylistProvider
+  tracks={tracks}
+  theme={{
+    playheadColor: '#00ff00',
+    selectionColor: 'rgba(0, 255, 0, 0.3)',
+  }}
+>
+  <Waveform />
+</WaveformPlaylistProvider>
+```
+
+## Gradient Waveforms
+
+Waveform colors support gradients for advanced visual effects:
+
+```typescript
+import type { WaveformGradient } from '@waveform-playlist/ui-components';
+
+const gradientTheme = {
+  ...defaultTheme,
+  waveFillColor: {
+    type: 'linear',
+    direction: 'vertical',  // or 'horizontal'
+    stops: [
+      { offset: 0, color: '#667eea' },    // Purple at top
+      { offset: 0.5, color: '#764ba2' },  // Mid purple
+      { offset: 1, color: '#f093fb' },    // Pink at bottom
+    ],
+  } as WaveformGradient,
+};
+```
+
+<Check>
+Gradients work with both `waveFillColor` and `waveOutlineColor` properties.
+</Check>
+
+## Waveform Draw Modes
+
+The theme includes a `waveformDrawMode` option that controls how colors are applied:
+
+### Inverted Mode (Default)
+
+Canvas draws `waveOutlineColor` in areas **without** audio:
+
+```typescript
+const theme = {
+  waveformDrawMode: 'inverted',
+  waveOutlineColor: '#ffffff',  // White background
+  waveFillColor: '#1a7f8e',     // Teal shows through peaks
+};
+```
+
+<Info>
+**Use inverted mode for:** Gradient bars, colored peaks on solid backgrounds
+</Info>
+
+### Normal Mode
+
+Canvas draws `waveFillColor` bars where audio peaks **are**:
+
+```typescript
+const theme = {
+  waveformDrawMode: 'normal',
+  waveOutlineColor: '#000000',  // Black background
+  waveFillColor: '#00ff00',     // Green bars drawn on peaks
+};
+```
+
+<Info>
+**Use normal mode for:** Gradient backgrounds, solid-colored peaks
+</Info>
+
+## Selected Track Styling
+
+Differentiate the selected track with dedicated theme properties:
+
+```typescript
+const theme = {
+  ...defaultTheme,
+  // Normal tracks
+  waveFillColor: '#1a7f8e',
+  
+  // Selected track (brighter)
+  selectedWaveFillColor: '#00b4d8',
+  selectedWaveOutlineColor: '#ffffff',
+  selectedTrackControlsBackground: '#d9e9ff',
+  selectedClipHeaderBackgroundColor: '#b3d9ff',
+};
+```
+
+<Tip>
+Selected track gets automatically highlighted when you click it or use editing operations (move, trim, split).
+</Tip>
+
+## Accessing Theme in Components
+
+Components access theme via styled-components:
+
+```typescript
+import styled from 'styled-components';
+
+const PlayheadLine = styled.div`
+  position: absolute;
+  width: 2px;
+  height: 100%;
+  background-color: ${props => props.theme.playheadColor};
+  pointer-events: none;
+`;
+```
+
+### Type Safety
+
+The theme is fully typed via module augmentation:
+
+```typescript
+// packages/ui-components/src/styled.d.ts
+import 'styled-components';
+import { WaveformPlaylistTheme } from './wfpl-theme';
+
+declare module 'styled-components' {
+  export interface DefaultTheme extends WaveformPlaylistTheme {}
+}
+```
+
+<Check>
+This gives you **full autocomplete** for theme properties in styled components.
+</Check>
+
+## Annotation Theming
+
+Annotations have dedicated theme properties:
+
+```typescript
+const theme = {
+  ...defaultTheme,
+  annotationBoxBackground: 'rgba(255, 255, 255, 0.85)',
+  annotationBoxActiveBackground: 'rgba(255, 255, 255, 0.95)',
+  annotationBoxBorder: '#ff9800',        // Orange border
+  annotationBoxActiveBorder: '#d67600',  // Darker when active
+  annotationLabelColor: '#2a2a2a',
+  annotationResizeHandleColor: 'rgba(0, 0, 0, 0.4)',
+};
+```
+
+## Dynamic Theme Switching
+
+Switch themes at runtime:
+
+```typescript
+import { useState } from 'react';
+import { defaultTheme, darkTheme } from '@waveform-playlist/ui-components';
+
+function App() {
+  const [isDark, setIsDark] = useState(false);
+  
+  return (
+    <>
+      <button onClick={() => setIsDark(!isDark)}>
+        Toggle Theme
+      </button>
+      
+      <WaveformPlaylistProvider
+        tracks={tracks}
+        theme={isDark ? darkTheme : defaultTheme}
+      >
+        <Waveform />
+      </WaveformPlaylistProvider>
+    </>
+  );
+}
+```
+
+### Docusaurus Integration
+
+Detect Docusaurus theme changes:
+
+```typescript
+import { useEffect, useState } from 'react';
+import { defaultTheme, darkTheme } from '@waveform-playlist/ui-components';
+
+function useDocusaurusTheme() {
+  const [theme, setTheme] = useState(defaultTheme);
+  
+  useEffect(() => {
+    // Check initial theme
+    const isDark = document.documentElement.dataset.theme === 'dark';
+    setTheme(isDark ? darkTheme : defaultTheme);
+    
+    // Observe theme changes
+    const observer = new MutationObserver(() => {
+      const isDark = document.documentElement.dataset.theme === 'dark';
+      setTheme(isDark ? darkTheme : defaultTheme);
+    });
+    
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+    
+    return () => observer.disconnect();
+  }, []);
+  
+  return theme;
+}
+
+// Usage
+function App() {
+  const theme = useDocusaurusTheme();
+  
+  return (
+    <WaveformPlaylistProvider tracks={tracks} theme={theme}>
+      <Waveform />
+    </WaveformPlaylistProvider>
+  );
+}
+```
+
+## Theme Organization
+
+### When to Add to Theme
+
+✅ **Visual/styling properties** (colors, backgrounds, borders)  
+✅ **User-customizable aesthetics**  
+✅ **Properties shared across components**  
+
+### When to Use Separate Props
+
+✅ **Functional/behavioral properties** (callbacks, data, configuration)  
+✅ **Properties that control what is rendered**  
+✅ **Component-specific settings**  
+
+**Example:**
+
+```typescript
+// ✅ Good: Visual in theme, behavior as prop
+<Waveform
+  showClipHeaders={true}  // Behavior prop
+  // clipHeaderBackgroundColor is in theme
+/>
+
+// ❌ Bad: Mixing visual and behavioral props
+<Waveform
+  showClipHeaders={true}
+  clipHeaderBackgroundColor="#333"  // Should be in theme
+/>
+```
+
+## CSS Variables Alternative
+
+For non-React styling, the theme can be converted to CSS variables:
+
+```typescript
+function themeToCSSVariables(theme: WaveformPlaylistTheme) {
+  return Object.entries(theme)
+    .map(([key, value]) => {
+      const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
+      return `--waveform-${cssKey}: ${value};`;
+    })
+    .join('\n');
+}
+
+// Apply to :root
+const cssVars = themeToCSSVariables(darkTheme);
+document.documentElement.style.cssText = cssVars;
+```
+
+## Performance Considerations
+
+<Warning>
+Changing the theme triggers a full re-render of all components. Avoid frequent theme switches during playback or intensive operations.
+</Warning>
+
+### Optimization Tips
+
+1. **Set theme once** at the provider level
+2. **Avoid inline theme objects** (creates new reference every render)
+3. **Use `useMemo`** for computed theme values:
+
+```typescript
+const theme = useMemo(() => ({
+  ...defaultTheme,
+  playheadColor: userColor,
+}), [userColor]);
+```
+
+## Theming Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Semantic Color Names">
+    Name theme properties by their purpose (`playheadColor`) rather than appearance (`redColor`). This makes themes easier to understand and maintain.
+  </Accordion>
+  
+  <Accordion title="Test Dark and Light Modes">
+    Always test your custom theme in both light and dark environments. What works on white may not work on black.
+  </Accordion>
+  
+  <Accordion title="Maintain Sufficient Contrast">
+    Ensure text and UI elements have sufficient contrast (WCAG AA: 4.5:1 for normal text, 3:1 for large text).
+  </Accordion>
+  
+  <Accordion title="Use Alpha Transparency Sparingly">
+    Overlays (selection, loop region, annotations) use alpha transparency to blend with the background. Too much transparency makes them hard to see.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="/concepts/architecture">
+    Understand the overall system design
+  </Card>
+  <Card title="Styling Example" icon="palette" href="/examples/styling">
+    See theming in action
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/types">
+    Complete type definitions
+  </Card>
+  <Card title="UI Components" icon="paintbrush" href="/api/ui-components">
+    Explore available components
+  </Card>
+</CardGroup>

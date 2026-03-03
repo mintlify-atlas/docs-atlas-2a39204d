@@ -1,0 +1,162 @@
+---
+title: Effects Controls
+description: UI components for controlling master volume and audio effects
+---
+
+## MasterVolumeControl
+
+Master volume control slider component for adjusting the overall output level.
+
+**Package:** `@waveform-playlist/ui-components`
+
+### Props
+
+<ParamField path="volume" type="number" required>
+  Current volume level as linear gain (0-1.0 range, consistent with Web Audio API). Displayed as percentage (0-100%) in the UI.
+</ParamField>
+
+<ParamField path="onChange" type="(volume: number) => void" required>
+  Callback function when volume changes. Receives new volume as linear gain (0-1.0).
+</ParamField>
+
+<ParamField path="disabled" type="boolean" default="false">
+  Whether the control is disabled.
+</ParamField>
+
+<ParamField path="className" type="string">
+  Additional CSS class name for styling.
+</ParamField>
+
+### Usage with Context
+
+```tsx
+import { useMasterVolume } from '@waveform-playlist/browser';
+import { MasterVolumeControl } from '@waveform-playlist/ui-components';
+
+function VolumeControls() {
+  const { masterVolume, setMasterVolume } = useMasterVolume();
+  
+  return (
+    <MasterVolumeControl 
+      volume={masterVolume}
+      onChange={setMasterVolume}
+    />
+  );
+}
+```
+
+### Standalone Usage
+
+```tsx
+import { useState } from 'react';
+import { MasterVolumeControl } from '@waveform-playlist/ui-components';
+
+function CustomVolumeControl() {
+  const [volume, setVolume] = useState(0.8);
+  
+  return (
+    <MasterVolumeControl 
+      volume={volume}
+      onChange={setVolume}
+    />
+  );
+}
+```
+
+---
+
+## Audio Effects
+
+For comprehensive audio effects functionality, see:
+
+- **[useDynamicEffects Hook](/api/hooks/effects)** - Master effects chain management
+- **[useTrackDynamicEffects Hook](/api/hooks/effects)** - Per-track effects
+- **[Effects Guide](/guides/audio-effects)** - Complete guide to using audio effects
+
+### Available Effects
+
+Waveform Playlist includes 20 Tone.js effects organized by category:
+
+**Reverb (3)**
+- Reverb - Classic reverb effect
+- JCReverb - John Chowning reverb
+- Freeverb - Freeverb algorithm
+
+**Delay (2)**
+- FeedbackDelay - Delay with feedback
+- PingPongDelay - Stereo ping-pong delay
+
+**Modulation (5)**
+- Chorus - Chorus effect
+- Phaser - Phaser effect
+- Tremolo - Amplitude modulation
+- Vibrato - Frequency modulation
+- AutoWah - Auto-wah filter
+
+**Filter (3)**
+- AutoFilter - Automated filter sweep
+- EQ3 - Three-band equalizer
+- Filter - Configurable filter
+
+**Distortion (3)**
+- Distortion - Classic distortion
+- Chebyshev - Chebyshev waveshaping
+- BitCrusher - Bit reduction effect
+
+**Dynamics (3)**
+- Compressor - Dynamic range compression
+- Limiter - Peak limiting
+- Gate - Noise gate
+
+**Spatial (1)**
+- StereoWidener - Stereo width control
+
+### Quick Example
+
+```tsx
+import { WaveformPlaylistProvider } from '@waveform-playlist/browser';
+import { useDynamicEffects } from '@waveform-playlist/browser';
+
+function EffectsControls() {
+  const { 
+    activeEffects,
+    addEffect,
+    updateEffectParam,
+    removeEffect,
+    effectDefinitions 
+  } = useDynamicEffects();
+  
+  return (
+    <div>
+      <button onClick={() => addEffect('reverb')}>
+        Add Reverb
+      </button>
+      
+      {activeEffects.map(effect => (
+        <div key={effect.id}>
+          <h3>{effectDefinitions[effect.type].displayName}</h3>
+          <button onClick={() => removeEffect(effect.id)}>
+            Remove
+          </button>
+          
+          {/* Effect parameter controls */}
+          {Object.entries(effect.params).map(([key, value]) => (
+            <label key={key}>
+              {key}
+              <input 
+                type="range"
+                value={value}
+                onChange={(e) => updateEffectParam(
+                  effect.id, 
+                  key, 
+                  parseFloat(e.target.value)
+                )}
+              />
+            </label>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
